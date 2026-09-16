@@ -77,5 +77,8 @@ export const DAU_HIEU_RO_PROMPT: readonly string[] = [
   // lúc bọc, nên model không đọc được dạng gạch dưới từ chính khối này.
   `<${THE_DIEU_DA_NHO}`,
   TIEU_DE_QUY_TAC_AN_TOAN,
+  "Áp dụng quy tắc PERSONA",
+  "Áp dụng quy tắc:",
+  "quy tắc PERSONA",
   ...KHA_NANG_DAY_DU,
 ];

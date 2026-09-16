@@ -83,6 +83,15 @@ const pending = new Map<string, PendingBatch>();
  * cuộc hội thoại lẫn trí nhớ của bot, trong khi người nhắn đã nhận dấu "đã
  * nhận" từ trước và đinh ninh bot có nghe.
  */
+export function cancelPendingMessages(threadKey: string): void {
+  const existing = pending.get(threadKey);
+  if (existing) {
+    if (existing.timer) clearTimeout(existing.timer);
+    pending.delete(threadKey);
+    log.info({ threadKey }, "Đã hủy các tin đang chờ gộp vì chủ tài khoản trực tiếp can thiệp");
+  }
+}
+
 export function enqueueMessage(
   threadKey: string,
   message: ParsedMessage,

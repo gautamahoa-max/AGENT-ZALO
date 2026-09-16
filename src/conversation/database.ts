@@ -27,6 +27,7 @@ db.exec("PRAGMA journal_mode = WAL;");
  * nhận được; treo cả bot 2ms mỗi lần ghi thì không.
  */
 db.exec("PRAGMA synchronous = NORMAL;");
+db.exec("PRAGMA busy_timeout = 5000;");
 
 runMigrations();
 
@@ -237,6 +238,72 @@ function runMigrations(): void {
       updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
       PRIMARY KEY (account_id, thread_id, day_key)
     );
+
+    -- C3: Prompt Versioning & Rollback
+    CREATE TABLE IF NOT EXISTS agent_persona_versions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      agent_id TEXT NOT NULL,
+      version INTEGER NOT NULL,
+      persona TEXT NOT NULL,
+      name TEXT NOT NULL,
+      model_name TEXT,
+      model_provider TEXT,
+      change_note TEXT NOT NULL DEFAULT '',
+      created_by TEXT NOT NULL DEFAULT 'dashboard',
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_agent_persona_versions ON agent_persona_versions (agent_id, version DESC);
+
+    -- C1: A/B Testing Framework Cho Persona
+    CREATE TABLE IF NOT EXISTS experiments (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      agent_id TEXT NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('draft', 'running', 'paused', 'completed')) DEFAULT 'draft',
+      variant_a_name TEXT NOT NULL DEFAULT 'Variant A',
+      variant_a_persona TEXT NOT NULL,
+      variant_b_name TEXT NOT NULL DEFAULT 'Variant B',
+      variant_b_persona TEXT NOT NULL,
+      traffic_ratio INTEGER NOT NULL DEFAULT 50,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      ended_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_experiments_agent ON experiments (agent_id, status);
+
+    CREATE TABLE IF NOT EXISTS experiment_assignments (
+      experiment_id TEXT NOT NULL,
+      thread_id TEXT NOT NULL,
+      variant TEXT NOT NULL CHECK (variant IN ('A', 'B')),
+      assigned_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      PRIMARY KEY (experiment_id, thread_id)
+    );
+
+    -- C5: Revenue Attribution & ROI Dashboard
+    CREATE TABLE IF NOT EXISTS leads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      account_id TEXT NOT NULL,
+      thread_id TEXT NOT NULL,
+      sender_id TEXT,
+      sender_name TEXT,
+      customer_name TEXT NOT NULL,
+      phone TEXT,
+      interest_type TEXT NOT NULL,
+      estimated_value TEXT NOT NULL DEFAULT '',
+      loan_amount_vnd REAL NOT NULL DEFAULT 0,
+      expected_revenue_vnd REAL NOT NULL DEFAULT 0,
+      actual_revenue_vnd REAL NOT NULL DEFAULT 0,
+      status TEXT NOT NULL CHECK (status IN ('qualified', 'appointment_booked', 'submitted', 'approved', 'disbursed', 'lost')) DEFAULT 'qualified',
+      experiment_id TEXT,
+      experiment_variant TEXT,
+      urgency TEXT NOT NULL DEFAULT 'cao',
+      details TEXT NOT NULL DEFAULT '',
+      action_needed TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_leads_status_created ON leads (status, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_leads_thread ON leads (account_id, thread_id);
   `);
 
   // Tool CHẠY LỖI: AI SDK để chúng ở content dạng tool-error, không vào
@@ -300,6 +367,10 @@ function runMigrations(): void {
   // phải ngay lần đầu (bất biến "chưa từng gửi được thì không coi là đã
   // chạy"). Mặc định 0 để mọi job cũ coi như chưa từng thử hỏng lần nào.
   addColumnIfMissing("scheduled_jobs", "delivery_attempts", "INTEGER NOT NULL DEFAULT 0");
+
+  // Gắn nhãn A/B test cho từng turn agent (nếu có)
+  addColumnIfMissing("agent_turns", "experiment_id", "TEXT");
+  addColumnIfMissing("agent_turns", "experiment_variant", "TEXT");
 }
 
 function addColumnIfMissing(table: string, column: string, definition: string): void {

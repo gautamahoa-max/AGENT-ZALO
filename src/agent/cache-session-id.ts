@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
  * Khóa phiên ổn định theo thread, gửi lên router qua header `x-session-id`
  * để bật prompt caching.
  *
- * Vì sao cần (đọc source 9Router, open-sse/utils/sessionManager.js):
+ * Vì sao cần (đọc source Google API, open-sse/utils/sessionManager.js):
  * router suy ra khóa cache theo thứ tự - header `x-session-id` trước, rồi
  * `body.prompt_cache_key`, rồi FALLBACK băm nội dung text của assistant trong
  * request. Client không gửi gì thì rơi vào fallback đó, mà text assistant DÀI

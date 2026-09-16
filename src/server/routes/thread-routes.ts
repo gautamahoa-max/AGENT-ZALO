@@ -2,11 +2,13 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { listMessagesPaged } from "../../conversation/history-store.js";
 import {
+  deleteThread,
   getThreadSummary,
   listThreads,
   setBotEnabled,
   setThreadSummary,
 } from "../../conversation/thread-store.js";
+import { db } from "../../conversation/database.js";
 import { getThreadUsageTotals } from "../../conversation/usage-store.js";
 import { xoaNguCanhThread } from "../../conversation/wipe-thread-context.js";
 import { huyBatchCuaThread } from "../../middleware/message-batcher.js";
@@ -99,4 +101,24 @@ export const threadRoutes = new Hono()
     });
 
     return c.json({ ok: true, ...ketQua, tinDangCho });
+  })
+
+  /**
+   * Xóa HOÀN TOÀN 1 cuộc trò chuyện:
+   * - Hủy tin nhắn đang chờ
+   * - Xóa toàn bộ tin nhắn, tóm tắt, trace, ảnh, và memories trong thread
+   * - Xóa số liệu usage turns
+   * - Xóa bản ghi khỏi bảng threads (biến mất khỏi danh sách Sessions)
+   */
+  .delete("/:threadId", (c) => {
+    const accountId = c.req.query("accountId") ?? "";
+    if (!accountId) return c.json({ error: "Thiếu accountId" }, 400);
+    const threadId = c.req.param("threadId");
+
+    const tinDangCho = huyBatchCuaThread(`${accountId}:${threadId}`);
+    const ketQua = xoaNguCanhThread(accountId, threadId, { xoaTriNho: true });
+    const daXoa = deleteThread(accountId, threadId);
+    db.prepare("DELETE FROM agent_turns WHERE account_id = ? AND thread_id = ?").run(accountId, threadId);
+
+    return c.json({ ok: true, daXoa, ...ketQua, tinDangCho });
   });

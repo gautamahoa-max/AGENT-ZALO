@@ -102,7 +102,7 @@ Mấy nhánh này hiếm thấy ở bản tự viết:
    chỉ push. Lượt chạy tốt 5 step rồi step 6 gặp 500 vẫn còn đủ manh mối.
 5. **Log cả `tool-error`**, không chỉ `toolResults` - vì tool ném exception
    không bao giờ lọt vào `toolResults` (đo thật với `ai@7.0.37`).
-6. **Sanitizing fetch**: cắt đuôi `data: [DONE]` mà 9Router dính vào body JSON.
+6. **Sanitizing fetch**: cắt đuôi `data: [DONE]` mà Google API dính vào body JSON.
 
 ---
 

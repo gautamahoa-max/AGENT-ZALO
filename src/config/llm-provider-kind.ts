@@ -23,7 +23,7 @@ export function laLlmProviderKind(giaTri: unknown): giaTri is LlmProviderKind {
  *
  * Dùng để quyết hai chuyện: base URL có bắt buộc không (không - SDK có sẵn
  * endpoint của hãng), và có tra `/models` của router để đoán khả năng đọc ảnh
- * không (không - đường đó là API riêng của 9Router).
+ * không (không - đường đó là API riêng của Google API).
  */
 export function laGoiThangHang(provider: LlmProviderKind): boolean {
   return provider === "anthropic" || provider === "google";

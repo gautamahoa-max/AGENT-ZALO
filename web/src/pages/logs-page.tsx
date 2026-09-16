@@ -79,8 +79,8 @@ export function LogsPage() {
     <>
       <PageHeader
         icon={IconDatabase}
-        title="Logs"
-        subtitle="Log toàn hệ thống đọc từ file. File ghi cả mức debug nên đầy đủ hơn nhìn terminal."
+        title="Nhật ký hệ thống"
+        subtitle="Nhật ký toàn bộ hoạt động hệ thống đọc trực tiếp từ file log."
       />
 
       {tat && (

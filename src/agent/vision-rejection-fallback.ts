@@ -8,7 +8,7 @@ import { APICallError, type ModelMessage } from "ai";
 
 /**
  * Provider TỪ CHỐI request (4xx) - với lượt đang đính ảnh, khả năng áp đảo là
- * model không nhận ảnh (endpoint ngoài 9Router không khai capability nên
+ * model không nhận ảnh (endpoint ngoài Google API không khai capability nên
  * detect đoán lạc quan). KHÔNG tính: 401/403 (sai key - bỏ ảnh cũng không
  * cứu), 429 (hết quota - lỗi tạm), 5xx (SDK maxRetries đã lo).
  */

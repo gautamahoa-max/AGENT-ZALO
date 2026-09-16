@@ -9,6 +9,7 @@ import { useUnsavedChangesPrompt } from "../shared/use-unsaved-changes-prompt";
 import { kiemForm, thanhPatch, tuAgent, type AgentDetailForm } from "./agent-detail-form";
 import { AgentFormLayout } from "./agent-form-layout";
 import { AgentIdentitySection } from "./agent-identity-section";
+import { AgentVersionsDrawer } from "./agent-versions-drawer";
 
 /**
  * Trang sửa một agent. Tách khỏi màn TẠO (`agent-create-modal.tsx`) vì hai việc
@@ -32,6 +33,7 @@ export function AgentDetailPage() {
   const [loi, setLoi] = useState(tuManTao?.loiSauKhiTao ?? "");
   const [daLuu, setDaLuu] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [moLichSu, setMoLichSu] = useState(false);
   const { confirm, confirmDialog } = useConfirmDialog();
 
   useEffect(() => {
@@ -148,6 +150,13 @@ export function AgentDetailPage() {
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={() => setMoLichSu(true)}
+              className="rounded-lg border border-line px-3.5 py-2 text-[14px] font-medium text-ink-soft hover:bg-tile hover:text-ink"
+            >
+              Lịch sử phiên bản
+            </button>
+            <button
+              type="button"
               onClick={roiTrang}
               className="rounded-lg border border-line px-4 py-2 text-[14px] font-medium text-ink-soft hover:bg-tile"
             >
@@ -185,6 +194,18 @@ export function AgentDetailPage() {
       />
 
       {confirmDialog}
+
+      <AgentVersionsDrawer
+        agentId={agent.id}
+        currentPersona={form.persona}
+        isOpen={moLichSu}
+        onClose={() => setMoLichSu(false)}
+        onRollbackSuccess={(personaMoi) => {
+          doi({ persona: personaMoi });
+          setMoLichSu(false);
+          setDaLuu(true);
+        }}
+      />
     </div>
   );
 }

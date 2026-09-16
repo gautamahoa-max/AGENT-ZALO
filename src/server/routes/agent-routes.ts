@@ -9,6 +9,10 @@ import {
   listAgents,
   updateAgent,
 } from "../../config/agent-store.js";
+import {
+  listPersonaVersions,
+  rollbackPersonaVersion,
+} from "../../conversation/persona-version-store.js";
 import { TOOL_KEYS } from "../../agent/tools/tool-registry.js";
 import { createLogger } from "../../shared/logger.js";
 import { getTuning } from "../../config/runtime-tuning-settings.js";
@@ -19,7 +23,7 @@ const createSchema = z.object({
   id: z.string().regex(/^[a-z0-9][a-z0-9-]*$/, "id phải là kebab-case"),
   name: z.string().min(1).max(100),
   icon: z.string().min(1).max(8).optional(),
-  persona: z.string().max(8000).optional(),
+  persona: z.string().max(50_000).optional(),
 });
 
 /**
@@ -38,7 +42,7 @@ function kiemTranContextCuaAgent(tran: number | null | undefined): string | null
 const patchSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   icon: z.string().min(1).max(8).optional(),
-  persona: z.string().max(8000).optional(),
+  persona: z.string().max(50_000).optional(),
   // null = bỏ override, quay về cấu hình Providers chung
   modelProvider: z.enum(LLM_PROVIDER_KINDS).nullable().optional(),
   modelName: z.string().min(1).nullable().optional(),
@@ -50,6 +54,7 @@ const patchSchema = z.object({
   disabledTools: z.array(z.enum(TOOL_KEYS as [string, ...string[]])).optional(),
   // null = theo LLM_CONTEXT_WINDOW ở trang Cấu hình. Biên trùng với schema env.
   contextWindow: z.number().int().min(4_000).max(2_000_000).nullable().optional(),
+  changeNote: z.string().max(200).optional(),
 });
 
 /** /api/agents - quản lý "não" (persona + model override), gắn vào account */
@@ -58,6 +63,22 @@ export const agentRoutes = new Hono()
   .get("/", (c) => {
     ensureDefaultAgent(); // UI luôn có ít nhất agent mặc định để gắn account
     return c.json({ items: listAgents() });
+  })
+
+  .get("/:id/versions", (c) => {
+    const id = c.req.param("id");
+    const items = listPersonaVersions(id);
+    return c.json({ items });
+  })
+
+  .post("/:id/versions/:version/rollback", (c) => {
+    const id = c.req.param("id");
+    const ver = parseInt(c.req.param("version"), 10);
+    if (isNaN(ver)) return c.json({ error: "Version không hợp lệ" }, 400);
+
+    const res = rollbackPersonaVersion(id, ver);
+    if (!res.ok) return c.json({ error: res.reason }, 400);
+    return c.json({ ok: true, version: res.version });
   })
 
   .post("/", async (c) => {

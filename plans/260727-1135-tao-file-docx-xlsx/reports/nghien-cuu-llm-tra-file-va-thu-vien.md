@@ -9,8 +9,8 @@ Gọi thật với prompt "tạo file Word bao-gia.docx, trả về file đính 
 | Đường gọi | Field trong `message` | Có file? | Model nói gì |
 |---|---|---|---|
 | DeepSeek trực tiếp (`api.deepseek.com`) | `role`, `content` | Không | "Tôi không thể trực tiếp tạo và gửi file .docx" |
-| 9Router + `cx/gpt-5.6-sol` | `role`, `content` | Không | "chưa thể tạo và đính kèm file trực tiếp" |
-| 9Router + `ds/deepseek-v4-pro` | `role`, `content`, `reasoning_content` | Không | Trả về **code Python** dùng `python-docx` |
+| Google API + `cx/gpt-5.6-sol` | `role`, `content` | Không | "chưa thể tạo và đính kèm file trực tiếp" |
+| Google API + `ds/deepseek-v4-pro` | `role`, `content`, `reasoning_content` | Không | Trả về **code Python** dùng `python-docx` |
 
 Không có field `attachments`/`files` ở cả cấp message lẫn cấp response. Chat
 Completions API chỉ có kênh text - giới hạn của giao thức, không phải của model.
@@ -18,7 +18,7 @@ Completions API chỉ có kênh text - giới hạn của giao thức, không ph
 **Điểm mấu chốt**: `ds/deepseek-v4-pro` trả về *code tạo file* chứ không phải file.
 Đó chính xác là cách IDE code hoạt động: model viết code, **IDE chạy code hộ**.
 
-Phát hiện phụ: 9Router trả JSON dính đuôi `data: [DONE]` (script test dùng fetch
+Phát hiện phụ: Google API trả JSON dính đuôi `data: [DONE]` (script test dùng fetch
 thuần chết ngay tại đó). Xác nhận fetch sanitizer trong repo vẫn đang gánh việc thật.
 
 ## 2. Vì sao file do IDE tạo lại "đẹp"

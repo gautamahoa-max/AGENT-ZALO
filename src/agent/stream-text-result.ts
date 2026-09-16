@@ -3,7 +3,7 @@
  * lại chỗ `streamText` đánh mất lỗi gốc.
  *
  * Vì sao lượt agent phải đi đường streaming dù không hề stream chữ xuống Zalo:
- * router 9Router nằm sau Cloudflare, mà Cloudflare cắt kết nối bằng 524 khi
+ * router Google API nằm sau Cloudflare, mà Cloudflare cắt kết nối bằng 524 khi
  * origin chưa trả BYTE ĐẦU TIÊN trong 100 giây. Request non-stream buộc router
  * gom trọn câu trả lời rồi mới gửi, nên byte đầu chỉ xuất hiện sau khi model
  * sinh xong - mọi lượt sinh dài (tạo tài liệu, bài giảng) đều vượt mốc đó.

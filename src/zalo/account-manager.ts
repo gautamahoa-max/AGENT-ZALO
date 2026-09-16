@@ -8,6 +8,7 @@ import {
 import { runStartupBackfill } from "../conversation/startup-backfill.js";
 import { clearPendingBatches } from "../middleware/message-batcher.js";
 import { createLogger } from "../shared/logger.js";
+import { sendSystemAlert } from "../shared/email-alert.js";
 import { routeIncomingMessage } from "./incoming-message-router.js";
 import { loginWithStoredCredentials } from "./zalo-client.js";
 import { startListener } from "./zalo-listener.js";
@@ -91,8 +92,17 @@ export async function startAllAccounts(): Promise<void> {
   for (const config of accounts) {
     try {
       await startAccount(config.id);
-    } catch (err) {
+    } catch (err: any) {
       log.error({ accountId: config.id, err }, "Không khởi động được account - bỏ qua");
+      void sendSystemAlert({
+        alertKey: `account_start_failed_${config.id}`,
+        title: `Tài khoản "${config.label || config.id}" không thể đăng nhập`,
+        message: `Phiên đăng nhập Zalo (Cookie/Credentials) của tài khoản "${config.label || config.id}" đã hết hạn hoặc bị từ chối kết nối. Bot hiện không thể tiếp nhận tin nhắn từ tài khoản này. Vui lòng đăng nhập lại qua Dashboard.`,
+        details: {
+          accountId: config.id,
+          error: err?.message || String(err),
+        },
+      });
     }
   }
 

@@ -4,7 +4,7 @@
  * Chỉ một lớp lỗi đáng thử lại: **provider chạy xong mà không đẻ ra ảnh nào**.
  * Đây là hành vi KHÔNG XÁC ĐỊNH, không phải sai cấu hình - router gửi
  * `tool_choice: "auto"` nên model upstream tự quyết có gọi tool vẽ hay không
- * (`9router/open-sse/handlers/imageProviders/codex.js:176`). Nó chọn trả lời
+ * (`google-api/open-sse/handlers/imageProviders/codex.js:176`). Nó chọn trả lời
  * bằng chữ là stream kết thúc sạch sẽ mà chẳng có ảnh.
  *
  * Đo thật 2026-08-05 trên router: lượt hỏng chạy 129,9 giây rồi mới báo lỗi,

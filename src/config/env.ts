@@ -70,6 +70,13 @@ const envSchema = z.object({
   // vì thời gian chạy tool nằm trong lượt; đặt thấp hơn là giết ngang lượt vẽ
   // ảnh hợp lệ. Đo thật: lượt nặng nhất quan sát được là 236s (tạo file Word).
   LLM_TURN_TIMEOUT_MS: z.coerce.number().int().min(60_000).max(3_600_000).default(900_000),
+  // ── Cost Guard: trần token để kiểm soát chi phí LLM ──
+  // 0 = tắt (không giới hạn). Trần giờ chặn flood attack ngắn hạn, trần ngày
+  // chặn tích lũy dài hạn. Cảnh báo email ở ALERT_THRESHOLD (mặc định 80%).
+  // Mặc định: 2M/giờ (~$0.80 Gemini Flash), 10M/ngày (~$4.00) — đủ ~200 lượt/ngày.
+  COST_GUARD_MAX_TOKENS_PER_HOUR: z.coerce.number().int().min(0).default(2_000_000),
+  COST_GUARD_MAX_TOKENS_PER_DAY: z.coerce.number().int().min(0).default(10_000_000),
+  COST_GUARD_ALERT_THRESHOLD: z.coerce.number().min(0).max(1).default(0.8),
   // Trần token model được sinh ra mỗi lượt. Phải đủ chỗ cho lượt TỐN NHẤT là
   // gọi tool tạo file: model viết cả nội dung file vào tool call. Đo thật một
   // báo cáo 6 sheet (15.000 ký tự nội dung) tốn ~7.100 token payload; cộng
@@ -84,7 +91,7 @@ const envSchema = z.object({
   // bước (đối chiếu số vé, đọc bảng) sẽ ẩu. off = tắt hẳn.
   LLM_REASONING_EFFORT: z.enum(["off", "low", "medium", "high", "xhigh"]).default("medium"),
   // Gửi header x-session-id ổn định theo thread để router bật prompt caching.
-  // Không gửi thì 9Router rơi về fallback băm text assistant - text đó dài thêm
+  // Không gửi thì Google API rơi về fallback băm text assistant - text đó dài thêm
   // mỗi lượt nên khóa đổi liên tục và cache không bao giờ trúng. Tắt khi router
   // đổi quy ước header hoặc cần cô lập từng request.
   LLM_CACHE_SESSION_ENABLED: z.preprocess(emptyToUndefined, z.stringbool().default(true)),
@@ -126,9 +133,9 @@ const envSchema = z.object({
   WEB_FETCH_FALLBACK_ENABLED: z.preprocess(emptyToUndefined, z.stringbool().default(true)),
 
   // Model chính có đọc được ảnh không. auto = tự hỏi router qua GET {baseUrl}/models
-  // (9Router trả capabilities.vision cho từng model; endpoint khác không có field
+  // (Google API trả capabilities.vision cho từng model; endpoint khác không có field
   // này thì coi như đọc được - giữ hành vi cũ). on/off = ép tay, dùng khi endpoint
-  // không phải 9Router mà model thật sự không có vision.
+  // không phải Google API mà model thật sự không có vision.
   LLM_VISION_MODE: z.enum(["auto", "on", "off"]).default("auto"),
   // Model phụ "đọc ảnh thuê" khi model chính không có vision: mô tả ảnh thành text
   // 1 lần (cache trong DB), model chính đọc text. Gemini free tier qua endpoint
@@ -161,7 +168,7 @@ const envSchema = z.object({
   // Số file tối đa 1 thread được tạo trong 1 giờ - chặn spam "xuất file" liên tục
   DOCUMENT_MAX_PER_HOUR: z.coerce.number().int().min(1).max(200).default(10),
 
-  // Tool vẽ ảnh. Endpoint OpenAI-compatible /v1/images/generations (9Router,
+  // Tool vẽ ảnh. Endpoint OpenAI-compatible /v1/images/generations (Google API,
   // OpenAI, hoặc gateway bất kỳ nói cùng giao thức). Cấu hình được từ dashboard
   // (Settings của dòng tool trên trang Tools) - env chỉ là giá trị khởi điểm.
   // KHÔNG tự dò được model như sidecar: /v1/models chỉ liệt kê model chat.
@@ -212,8 +219,8 @@ const envSchema = z.object({
   // Số tin tối đa giữ lại mỗi thread; tin cũ hơn bị xóa sau mỗi lần ghi để DB
   // không phình vô hạn khi bot chạy dài ngày.
   HISTORY_MAX_MESSAGES_PER_THREAD: z.coerce.number().int().min(20).max(100_000).default(500),
-  SEND_DELAY_MIN_MS: z.coerce.number().int().min(0).default(800),
-  SEND_DELAY_MAX_MS: z.coerce.number().int().min(0).default(2500),
+  SEND_DELAY_MIN_MS: z.coerce.number().int().min(0).default(3000),
+  SEND_DELAY_MAX_MS: z.coerce.number().int().min(0).default(7000),
   // Zalo chặn tin quá dài ở phía server (error_code 118 "Nội dung quá dài") -
   // zca-js không kiểm gì nên vượt ngưỡng là mất trắng cả câu trả lời. Đo được:
   // chính Zalo tự cắt tin dán vào thành đoạn 2613 ký tự, tức trần thật >= 2613;

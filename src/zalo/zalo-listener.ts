@@ -1,5 +1,6 @@
 import type { API } from "zca-js";
 import { createLogger } from "../shared/logger.js";
+import { sendSystemAlert } from "../shared/email-alert.js";
 
 export type RawMessageHandler = (rawMessage: unknown) => Promise<void> | void;
 
@@ -41,6 +42,15 @@ export function startListener(
     const delay = backoff + Math.floor(Math.random() * 1000);
     reconnectAttempts += 1;
     log.warn({ attempt: reconnectAttempts, delayMs: delay }, "Listener bị đóng - sẽ kết nối lại");
+
+    if (reconnectAttempts === 5) {
+      void sendSystemAlert({
+        alertKey: `listener_disconnect_${accountId}`,
+        title: `Mất kết nối Zalo liên tục trên tài khoản "${accountId}"`,
+        message: `Hệ thống đã thử kết nối lại 5 lần liên tiếp nhưng không thành công. Có thể phiên Zalo Web đã bị ngắt từ điện thoại hoặc kết nối mạng bị gián đoạn. Vui lòng kiểm tra lại Dashboard.`,
+        details: { accountId, reconnectAttempts },
+      });
+    }
 
     setTimeout(() => {
       if (stopped) return;

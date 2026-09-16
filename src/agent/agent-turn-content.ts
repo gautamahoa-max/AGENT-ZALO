@@ -21,7 +21,7 @@ import { getTuning } from "../config/runtime-tuning-settings.js";
 
 /**
  * Dựng input cho 1 lượt agent theo 4 chế độ ảnh (mô hình auto|native|text của
- * Hermes, thêm blind khi không có sidecar và hybrid cho combo của 9Router):
+ * Hermes, thêm blind khi không có sidecar và hybrid cho combo của Google API):
  *
  * - native:   model chính đọc được ảnh - đính pixel như trước giờ.
  * - describe: model chính KHÔNG đọc được ảnh nhưng có sidecar - thay pixel

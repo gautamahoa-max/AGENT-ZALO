@@ -6,7 +6,7 @@ import { getTuning } from "../config/runtime-tuning-settings.js";
 /**
  * Gọi endpoint OpenAI-compatible `/v1/images/generations` để vẽ hoặc SỬA ảnh.
  *
- * Ba quyết định đến từ đo thật trên 9Router (cx/gpt-5.5-image), không phải suy đoán:
+ * Ba quyết định đến từ đo thật trên Google API (cx/gpt-5.5-image), không phải suy đoán:
  *
  * 1. XIN SSE bằng header `Accept: text/event-stream`, KHÔNG dùng
  *    `?response_format=binary`. Binary nhẹ hơn thật (157KB so với 2.4MB base64)

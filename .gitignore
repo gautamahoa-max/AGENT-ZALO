@@ -19,3 +19,19 @@ qr*.png
 
 # Cấu hình MCP server của máy dev (đường dẫn tuyệt đối, có thể chứa token)
 .mcp.json
+
+# Docker runtime
+docker-compose.override.yml
+
+# Temporary logs, backups, OS metadata, scratch patches
+*.log
+*.bak
+.DS_Store
+*/.DS_Store
+patch_*.py
+patch_*.js
+test-label.ts
+test_parse.ts
+9router-search.txt
+cleaned_persona.txt
+.github/

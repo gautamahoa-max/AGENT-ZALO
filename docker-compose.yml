@@ -1,0 +1,29 @@
+services:
+  zalo-agent:
+    build: .
+    container_name: zalo-agent
+    restart: unless-stopped
+    ports:
+      # Chỉ bind localhost — Caddy/Nginx reverse proxy vào
+      - "127.0.0.1:3900:3900"
+    volumes:
+      # Mount data/ ra ngoài container để persist DB, credentials, media
+      - ./data:/app/data
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - DATA_DIR=/app/data
+      - DASHBOARD_BEHIND_PROXY=true
+    # Giới hạn tài nguyên phòng trường hợp LLM stream leak memory
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"

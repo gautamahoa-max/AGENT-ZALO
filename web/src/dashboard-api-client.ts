@@ -134,6 +134,13 @@ export const api = {
       { method: "DELETE" },
     ),
 
+  /** Xóa hoàn toàn cuộc trò chuyện khỏi danh sách và database */
+  deleteThread: (accountId: string, threadId: string) =>
+    request<{ ok: true; daXoa: boolean }>(
+      `/api/threads/${encodeURIComponent(threadId)}?accountId=${encodeURIComponent(accountId)}`,
+      { method: "DELETE" },
+    ),
+
   contacts: (accountId: string, q: string, page: number) =>
     request<{ items: ContactItem[]; hasMore: boolean }>(
       `/api/contacts?accountId=${encodeURIComponent(accountId)}&q=${encodeURIComponent(q)}&page=${page}`,
@@ -200,6 +207,58 @@ export const api = {
       }),
     remove: (id: string) =>
       request<{ ok: true }>(`/api/agents/${encodeURIComponent(id)}`, { method: "DELETE" }),
+    versions: (id: string) =>
+      request<{ items: PersonaVersionItem[] }>(`/api/agents/${encodeURIComponent(id)}/versions`),
+    rollbackVersion: (id: string, version: number) =>
+      request<{ ok: true; version: PersonaVersionItem }>(
+        `/api/agents/${encodeURIComponent(id)}/versions/${version}/rollback`,
+        { method: "POST" },
+      ),
+  },
+
+  experiments: {
+    list: () => request<{ items: ExperimentItem[] }>("/api/experiments"),
+    get: (id: string) =>
+      request<{ experiment: ExperimentItem; metrics: ExperimentMetricsData | null }>(
+        `/api/experiments/${encodeURIComponent(id)}`,
+      ),
+    create: (input: {
+      id: string;
+      name: string;
+      description?: string;
+      agentId: string;
+      variantAName?: string;
+      variantAPersona: string;
+      variantBName?: string;
+      variantBPersona: string;
+      trafficRatio?: number;
+    }) =>
+      request<{ experiment: ExperimentItem }>("/api/experiments", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    update: (id: string, patch: Partial<ExperimentItem>) =>
+      request<{ experiment: ExperimentItem }>(`/api/experiments/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        body: JSON.stringify(patch),
+      }),
+    remove: (id: string) =>
+      request<{ ok: true }>(`/api/experiments/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  },
+
+  roi: {
+    summary: () => request<RoiSummaryData>("/api/roi"),
+    leads: (status?: string, limit?: number, offset?: number) =>
+      request<{ items: LeadItem[]; total: number }>(
+        `/api/leads${status ? `?status=${encodeURIComponent(status)}` : ""}` +
+          (limit ? `&limit=${limit}` : "") +
+          (offset ? `&offset=${offset}` : ""),
+      ),
+    updateLead: (id: number, patch: { status?: string; actualRevenueVnd?: number; details?: string }) =>
+      request<{ lead: LeadItem }>(`/api/leads/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(patch),
+      }),
   },
 
   memories: (accountId: string, q: string, page: number) =>
@@ -209,6 +268,39 @@ export const api = {
   deleteMemory: (accountId: string, id: number) =>
     request<{ ok: true }>(`/api/memories/${id}?accountId=${encodeURIComponent(accountId)}`, {
       method: "DELETE",
+    }),
+
+  notebookSyncStatus: () =>
+    request<{
+      lastSyncAt: string | null;
+      syncedSourcesCount: number;
+      history: Array<{
+        timestamp: string;
+        newSourcesCount: number;
+        sourceTitles: string[];
+        summary: string;
+      }>;
+      isSyncRunning: boolean;
+    }>("/api/sync/notebooklm/status"),
+
+  runNotebookSync: (forceAll = false) =>
+    request<{
+      success: boolean;
+      totalNotebooks: number;
+      totalSources: number;
+      newSourcesCount: number;
+      processedSources: Array<{
+        title: string;
+        notebookTitle: string;
+        summary: string;
+        personaRulesCount: number;
+        entitiesCount: number;
+      }>;
+      message: string;
+      error?: string;
+    }>("/api/sync/notebooklm/run", {
+      method: "POST",
+      body: JSON.stringify({ forceAll }),
     }),
 
   tools: () =>
@@ -596,4 +688,98 @@ export type ScheduledJobRunItem = {
   deliveredChars: number;
   startedAt: string;
   finishedAt: string | null;
+};
+
+// ===== C3: Prompt Versioning Types =====
+export type PersonaVersionItem = {
+  id: number;
+  agentId: string;
+  version: number;
+  persona: string;
+  name: string;
+  modelName: string | null;
+  modelProvider: string | null;
+  changeNote: string;
+  createdBy: string;
+  createdAt: string;
+};
+
+// ===== C1: A/B Testing Types =====
+export type ExperimentStatus = "draft" | "running" | "paused" | "completed";
+
+export type ExperimentItem = {
+  id: string;
+  name: string;
+  description: string;
+  agentId: string;
+  status: ExperimentStatus;
+  variantAName: string;
+  variantAPersona: string;
+  variantBName: string;
+  variantBPersona: string;
+  trafficRatio: number;
+  createdAt: string;
+  endedAt: string | null;
+};
+
+export type VariantStatsData = {
+  threads: number;
+  turns: number;
+  tokens: number;
+  leads: number;
+  appointments: number;
+  conversionRate: number;
+};
+
+export type ExperimentMetricsData = {
+  experiment: ExperimentItem;
+  variantA: VariantStatsData;
+  variantB: VariantStatsData;
+};
+
+// ===== C5: Leads & ROI Types =====
+export type LeadStatus =
+  | "qualified"
+  | "appointment_booked"
+  | "submitted"
+  | "approved"
+  | "disbursed"
+  | "lost";
+
+export type LeadItem = {
+  id: number;
+  accountId: string;
+  threadId: string;
+  senderId: string | null;
+  senderName: string | null;
+  customerName: string;
+  phone: string | null;
+  interestType: string;
+  estimatedValue: string;
+  loanAmountVnd: number;
+  expectedRevenueVnd: number;
+  actualRevenueVnd: number;
+  status: LeadStatus;
+  experimentId: string | null;
+  experimentVariant: string | null;
+  urgency: string;
+  details: string;
+  actionNeeded: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type RoiSummaryData = {
+  totalLlmCostUsd: number;
+  totalLlmCostVnd: number;
+  totalLeads: number;
+  totalAppointments: number;
+  totalDisbursed: number;
+  pipelineValueVnd: number;
+  expectedRevenueVnd: number;
+  actualRevenueVnd: number;
+  costPerLeadVnd: number;
+  roiMultiplier: number;
+  funnel: { status: string; label: string; count: number; valueVnd: number }[];
+  productBreakdown: { interestType: string; label: string; count: number; volumeVnd: number }[];
 };

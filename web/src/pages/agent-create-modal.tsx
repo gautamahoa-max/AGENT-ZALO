@@ -111,7 +111,7 @@ export function AgentCreateModal({
             value={persona}
             onChange={(e) => setPersona(e.target.value)}
             placeholder="Bạn là trợ lý chăm sóc khách hàng, xưng 'em' với khách..."
-            maxLength={8000}
+            maxLength={50000}
           />
         </div>
 

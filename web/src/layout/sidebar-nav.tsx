@@ -28,27 +28,32 @@ import { useTheme } from "../shared/use-theme";
 type IconFn = (p: SVGProps<SVGSVGElement> & { size?: number }) => ReactNode;
 
 const SECTIONS: { title: string; items: { to: string; label: string; icon: IconFn }[] }[] = [
-  { title: "Core", items: [{ to: "/", label: "Overview", icon: IconGrid }] },
+  { 
+    title: "Tổng quan", 
+    items: [
+      { to: "/", label: "Tổng quan", icon: IconGrid },
+      { to: "/roi", label: "Hiệu quả & ROI", icon: IconSignal },
+      { to: "/usage", label: "Thống kê (Usage)", icon: IconDatabase }
+    ] 
+  },
   {
     title: "Hội thoại",
     items: [
-      { to: "/sessions", label: "Sessions", icon: IconChat },
-      { to: "/contacts", label: "Contacts", icon: IconUsers },
+      { to: "/sessions", label: "Cuộc trò chuyện", icon: IconChat },
+      { to: "/contacts", label: "Danh bạ", icon: IconUsers },
       { to: "/schedule", label: "Lịch hẹn", icon: IconClock },
     ],
   },
-  { title: "Dữ liệu", items: [{ to: "/memory", label: "Memory", icon: IconBrain }] },
+  { title: "Dữ liệu", items: [{ to: "/memory", label: "Bộ nhớ", icon: IconBrain }] },
   {
     title: "Hệ thống",
     items: [
-      { to: "/accounts", label: "Accounts", icon: IconSignal },
-      { to: "/agents", label: "Agents", icon: IconBot },
-      { to: "/tools", label: "Tools", icon: IconBolt },
-      { to: "/trace", label: "Trace agent", icon: IconCpu },
-      { to: "/logs", label: "Logs", icon: IconDatabase },
-      // Nhà cung cấp LLM KHÔNG còn là mục riêng: nó là một nhóm trong trang
-      // Cấu hình (/tuning/providers). Một trang chỉ chứa 4 ô mà chiếm một
-      // dòng sidebar ngang hàng với Accounts, Agents là không cân.
+      { to: "/accounts", label: "Tài khoản", icon: IconSignal },
+      { to: "/agents", label: "Trợ lý AI", icon: IconBot },
+      { to: "/experiments", label: "A/B Testing", icon: IconBolt },
+      { to: "/tools", label: "Công cụ", icon: IconBolt },
+      { to: "/trace", label: "Lịch sử Agent", icon: IconCpu },
+      { to: "/logs", label: "Nhật ký Logs", icon: IconDatabase },
       { to: "/tuning", label: "Cấu hình", icon: IconGear },
     ],
   },
@@ -164,7 +169,7 @@ export function SidebarNav({
         <div className="flex items-center justify-between border-t border-line px-4 py-3">
           <span className="flex items-center gap-2 text-[12px] text-ink-soft">
             <span className={`h-2 w-2 rounded-full ${online ? "bg-emerald-500" : "bg-slate-300 dark:bg-slate-600"}`} />
-            {online ? "Connected" : "Offline"} · v{__APP_VERSION__}
+            {online ? "Đang kết nối" : "Ngoại tuyến"} · v{__APP_VERSION__}
           </span>
           <div className="flex items-center gap-0.5">
             <button

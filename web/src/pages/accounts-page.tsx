@@ -56,8 +56,8 @@ export function AccountsPage() {
     <div>
       <PageHeader
         icon={IconSignal}
-        title="Accounts"
-        subtitle="Tài khoản Zalo của bot - mỗi account gắn một agent (não) và có policies riêng"
+        title="Tài khoản Zalo"
+        subtitle="Tài khoản Zalo kết nối - mỗi tài khoản gắn một trợ lý AI và có cấu hình riêng"
         aside={
           <button
             onClick={() => setCreating(true)}

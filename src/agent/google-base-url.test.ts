@@ -9,7 +9,7 @@ import { cleanupTestEnv, setupTestEnv } from "../shared/test-env-setup.js";
  *   - Đuôi "/openai": lớp giả OpenAI của Google, không phải API riêng mà
  *     provider này nói. Người dùng cũ CHẮC CHẮN có đuôi này vì nút chọn nhanh
  *     "Google Gemini" từng điền đúng URL đó.
- *   - URL của hãng KHÁC (OpenRouter, 9Router): gửi khóa Google sang đó là vừa
+ *   - URL của hãng KHÁC (OpenRouter, Google API): gửi khóa Google sang đó là vừa
  *     lộ khóa sang bên thứ ba vừa nhận 401 khó hiểu.
  */
 
@@ -47,7 +47,7 @@ describe("baseUrlChoGoogle", () => {
 
   it("BỎ HẲN base URL của hãng khác - không gửi khóa Google sang bên thứ ba", () => {
     assert.equal(provider.baseUrlChoGoogle("https://openrouter.ai/api/v1"), undefined);
-    assert.equal(provider.baseUrlChoGoogle("https://9router.example.io.vn/v1"), undefined);
+    assert.equal(provider.baseUrlChoGoogle("https://google-api.example.io.vn/v1"), undefined);
     assert.equal(provider.baseUrlChoGoogle("https://api.openai.com/v1"), undefined);
   });
 

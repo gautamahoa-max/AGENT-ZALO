@@ -4,7 +4,7 @@
 
 User hỏi bot có tạo được file Word/Excel không. Đã đo thật (xem
 `reports/nghien-cuu-llm-tra-file-va-thu-vien.md`): **LLM API chỉ trả text**, cả
-DeepSeek trực tiếp lẫn qua 9Router đều không có kênh file. IDE code tạo được file
+DeepSeek trực tiếp lẫn qua Google API đều không có kênh file. IDE code tạo được file
 là vì IDE **chạy code** model viết ra - đường đó không dùng được cho bot Zalo (đọc
 tin người lạ, không ai duyệt lệnh).
 

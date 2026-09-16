@@ -1,4 +1,5 @@
 import { db } from "../conversation/database.js";
+import { recordPersonaVersion } from "../conversation/persona-version-store.js";
 import type { ReasoningEffort } from "../agent/reasoning-options.js";
 import { parseDisabledTools } from "./parse-disabled-tools.js";
 import type { LlmProviderKind } from "./llm-provider-kind.js";
@@ -110,6 +111,15 @@ export function createAgent(input: {
     input.name,
     input.persona ?? "",
   );
+  try {
+    recordPersonaVersion(
+      input.id,
+      { persona: input.persona ?? "", name: input.name },
+      "Phiên bản khởi tạo",
+    );
+  } catch {
+    /* không làm gián đoạn tạo agent nếu lưu lịch sử lỗi */
+  }
   return getAgent(input.id)!;
 }
 
@@ -120,7 +130,7 @@ export function updateAgent(
       AgentProfile,
       "icon" | "name" | "persona" | "modelProvider" | "modelName" | "maxSteps" | "reasoningEffort" | "disabledTools" | "contextWindow"
     >
-  >,
+  > & { changeNote?: string },
 ): AgentProfile | null {
   const current = getAgent(id);
   if (!current) return null;
@@ -130,7 +140,7 @@ export function updateAgent(
   // parameter". Zod ở biên API đã loại key vắng mặt nên đường route không dính,
   // nhưng call site nội bộ thì không có ai đỡ.
   const patchSach = Object.fromEntries(
-    Object.entries(patch).filter(([, v]) => v !== undefined),
+    Object.entries(patch).filter(([k, v]) => v !== undefined && k !== "changeNote"),
   ) as typeof patch;
   const next = { ...current, ...patchSach };
   db.prepare(
@@ -149,6 +159,25 @@ export function updateAgent(
     next.contextWindow,
     id,
   );
+
+  // Tự động ghi lại phiên bản mới nếu persona có sự thay đổi
+  if (next.persona !== current.persona || next.name !== current.name) {
+    try {
+      recordPersonaVersion(
+        id,
+        {
+          persona: next.persona,
+          name: next.name,
+          modelName: next.modelName,
+          modelProvider: next.modelProvider,
+        },
+        patch.changeNote || "Cập nhật từ dashboard",
+      );
+    } catch {
+      /* không gián đoạn cập nhật */
+    }
+  }
+
   return getAgent(id);
 }
 

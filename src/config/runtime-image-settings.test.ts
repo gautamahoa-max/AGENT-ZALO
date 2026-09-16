@@ -27,7 +27,7 @@ describe("runtime-image-settings", () => {
   });
 
   it("đủ 3 field mới tính là cấu hình; key round-trip qua mã hóa", () => {
-    store.updateImageSettings({ baseUrl: "https://9router.test" });
+    store.updateImageSettings({ baseUrl: "https://google-api.test" });
     assert.equal(store.isImageGenConfigured(), false, "mới có base URL - chưa đủ");
 
     store.updateImageSettings({ model: "cx/gpt-5.5-image" });
@@ -64,7 +64,7 @@ describe("runtime-image-settings", () => {
   });
 
   it("bỏ trống apiKey trong update = GIỮ key cũ, không xóa", () => {
-    store.updateImageSettings({ baseUrl: "https://9router.test", model: "cx/gpt-5.5-image", apiKey: "sk-giu-lai" });
+    store.updateImageSettings({ baseUrl: "https://google-api.test", model: "cx/gpt-5.5-image", apiKey: "sk-giu-lai" });
     store.updateImageSettings({ model: "cx/gpt-5.3-image" });
     assert.equal(store.getImageSettings().apiKey, "sk-giu-lai");
     store.clearImageSettings();

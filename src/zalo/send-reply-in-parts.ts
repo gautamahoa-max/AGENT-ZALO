@@ -1,6 +1,7 @@
 import type { API, Style, ThreadType } from "zca-js";
 import { enqueueSend } from "../middleware/rate-limiter.js";
 import { createLogger } from "../shared/logger.js";
+import { recordBotSentMessage } from "./bot-sent-tracker.js";
 import { chiaTheoNganSachByte, demDoanBoDinhDang } from "./split-styled-message.js";
 import { getTuning } from "../config/runtime-tuning-settings.js";
 
@@ -74,9 +75,11 @@ export type ReplyResult = {
  */
 function sendOne(target: ReplyTarget, text: string, styles?: Style[]): Promise<unknown> {
   const msg = styles && styles.length > 0 ? { msg: text, styles } : { msg: text };
-  return enqueueSend(target.threadKey, () =>
-    target.api.sendMessage(msg, target.threadId, target.threadType),
-  );
+  return enqueueSend(target.threadKey, async () => {
+    const res = await target.api.sendMessage(msg, target.threadId, target.threadType);
+    recordBotSentMessage(res, text, target.threadId);
+    return res;
+  });
 }
 
 /**
@@ -208,16 +211,19 @@ const lanBaoLoiCuoi = new Map<string, number>();
  */
 const KHOANG_LANG_BAO_LOI_MS = 60_000;
 
-/**
- * Báo cho người nhắn biết bot đang hỏng. Tự nuốt lỗi: đây đã là đường cứu cánh,
- * hỏng nốt thì chỉ còn cách ghi log.
- *
- * Bỏ qua nếu vừa báo đúng loại lỗi này cho thread này - xem
- * `KHOANG_LANG_BAO_LOI_MS`.
- */
-export async function notifyTechnicalError(target: ReplyTarget, loaiLoi?: string): Promise<void> {
-  log.warn({ threadId: target.threadId, loaiLoi }, "Lượt bot gặp lỗi, im lặng không nhắn báo lỗi cho khách");
-  return;
+export async function notifyTechnicalError(target: ReplyTarget, loaiLoi = "chung"): Promise<void> {
+  const khoa = `${target.threadKey}:${loaiLoi}`;
+  const gio = Date.now();
+  const lanCuoi = lanBaoLoiCuoi.get(khoa) ?? 0;
+  if (gio - lanCuoi < KHOANG_LANG_BAO_LOI_MS) {
+    return;
+  }
+  lanBaoLoiCuoi.set(khoa, gio);
+  try {
+    await sendOne(target, cauLoiTheoLoai(loaiLoi));
+  } catch (err) {
+    log.error({ err, threadId: target.threadId }, "Báo lỗi kỹ thuật thất bại");
+  }
 }
 
 /** Xóa bộ nhớ khử trùng - chỉ test dùng, để các ca không ảnh hưởng lẫn nhau */

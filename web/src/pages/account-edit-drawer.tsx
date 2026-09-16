@@ -204,7 +204,7 @@ export function AccountEditDrawer({
               value={form.allowlistMode}
               options={[
                 { value: "all", label: "Trả lời tất cả mọi người" },
-                { value: "list", label: "Chỉ trả lời user ID trong danh sách" },
+                { value: "list", label: "Chỉ trả lời ID Người Dùng / ID Cuộc Trò Chuyện cụ thể" },
               ]}
               onChange={(allowlistMode) => setForm({ ...form, allowlistMode: allowlistMode as "all" | "list" })}
             />
@@ -213,7 +213,7 @@ export function AccountEditDrawer({
                 className="gc-input min-h-24 w-full resize-y"
                 value={form.allowlistIds}
                 onChange={(e) => setForm({ ...form, allowlistIds: e.target.value })}
-                placeholder={"Mỗi dòng 1 user ID\n1234567890123456789"}
+                placeholder={"Mỗi dòng 1 User ID hoặc Thread ID\nVí dụ: 1234567890123456789\nHoặc ID Nhóm (bắt đầu bằng g-)"}
               />
             )}
           </div>

@@ -338,3 +338,43 @@ THAT SU
     }
   });
 });
+
+describe("lamSachTraLoi - bỏ suy nghĩ nội tâm và tiền tố meta", () => {
+  it("dọn 'Đã gửi file... - giờ trả lời theo KB...'", () => {
+    const goc = "Đã gửi file Excel thành công - giờ trả lời ngắn gọn theo KB1. Vay 1.8 tỷ / 25 năm, Bcons ưu đãi 10.2%/năm (ân hạn gốc 24T). Lãi tháng 1 = 1.8 tỷ * 10.2% / 12 = 15.3 tr/tháng.";
+    const ra = sach(goc);
+    assert.ok(!ra.includes("Đã gửi file"));
+    assert.ok(!ra.includes("KB1"));
+    assert.match(ra, /Vay 1.8 tỷ \/ 25 năm/);
+  });
+
+  it("dọn 'Suy nghĩ:... Lời thoại:...'", () => {
+    const goc = "Suy nghĩ: Khách hỏi lãi suất.\nLời thoại: Dạ em chào anh Tuấn ạ!";
+    const ra = sach(goc);
+    assert.ok(!ra.includes("Suy nghĩ:"));
+    assert.ok(!ra.includes("Lời thoại:"));
+    assert.equal(ra, "Dạ em chào anh Tuấn ạ!");
+  });
+
+  it("dọn 'Áp dụng KB1:...'", () => {
+    const goc = "Áp dụng KB1: Vay 2 tỷ trong 20 năm thì mỗi tháng trả 15 triệu.";
+    const ra = sach(goc);
+    assert.equal(ra, "Vay 2 tỷ trong 20 năm thì mỗi tháng trả 15 triệu.");
+  });
+
+  it("dọn khối nháp tính toán ở ngôi thứ 3 (như 'Khách vay 1 tỷ...')", () => {
+    const goc = `Khách vay 1 tỷ, 10 năm (120 tháng), ân hạn gốc 24 tháng dự án Bcons (lãi ưu đãi ~10.2%/năm).
+- 24 tháng đầu (ân hạn gốc): Gốc = 0đ, Lãi/tháng = 1.000.000.000 x 10.2% ÷ 12 = 8.5 triệu/tháng.
+- Từ tháng 25: Gốc/tháng = 1 tỷ ÷ 96 tháng = ~10.4 triệu/tháng.
+
+Vay 1 tỷ/10 năm (ân hạn gốc 24 tháng): 2 năm đầu anh chỉ trả lãi tầm 8.5 triệu/tháng, từ tháng 25 bắt đầu trả gốc ~10.4 triệu + lãi giảm dần ạ.
+
+Em đã gửi kèm file Excel bảng tính dòng tiền chi tiết từng tháng qua Zalo, anh Hoà xem qua nhé! 😊`;
+
+    const ra = sach(goc);
+    assert.ok(!ra.includes("Khách vay 1 tỷ"));
+    assert.ok(!ra.includes("1.000.000.000 x 10.2%"));
+    assert.match(ra, /Vay 1 tỷ\/10 năm \(ân hạn gốc 24 tháng\)/);
+  });
+});
+

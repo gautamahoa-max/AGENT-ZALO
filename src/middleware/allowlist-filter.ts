@@ -47,8 +47,11 @@ export function shouldRespond(
     }
   }
 
-  if (account.allowlist.mode === "list" && !account.allowlist.userIds.includes(msg.senderId)) {
-    return skip(`sender ${msg.senderId} ngoài allowlist`);
+  if (account.allowlist.mode === "list") {
+    const allowed = account.allowlist.userIds;
+    if (!allowed.includes(msg.senderId) && !allowed.includes(msg.threadId)) {
+      return skip(`sender ${msg.senderId} và thread ${msg.threadId} ngoài allowlist`);
+    }
   }
 
   // Check kill switch SAU allowlist: người ngoài allowlist không được ghi history

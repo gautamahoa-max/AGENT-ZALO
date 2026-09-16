@@ -10,7 +10,7 @@
 - [x] Middleware: allowlist, group @mention gating, rate-limit gửi tin
 - [x] Login QR (pnpm zalo-login <id>, ảnh QR tự mở), listener auto-reconnect backoff, graceful shutdown, pino logging
 - [x] Console UTF-8 trên Windows (log tiếng Việt không vỡ dấu)
-- [x] Test end-to-end với account Zalo thật (nick "Minh Triết") - chat, tool calling (thả tim thật), vision (mô tả đúng ảnh) đều chạy qua 9Router
+- [x] Test end-to-end với account Zalo thật (nick "Minh Triết") - chat, tool calling (thả tim thật), vision (mô tả đúng ảnh) đều chạy qua Google API
 - [x] Gộp tin nhắn cùng thread thành 1 lượt agent + chạy tuần tự (sửa lỗi trả lời 2 tin mâu thuẫn khi gửi ảnh kèm câu hỏi)
 - [x] Unit test (`pnpm test`, dùng `node --test` + tsx, không thêm dependency): allowlist-filter, message-batcher, zalo-message-parser, history-store - 29 test
 - [x] Prune history: mỗi thread giữ tối đa `HISTORY_MAX_MESSAGES_PER_THREAD` (mặc định 500) tin mới nhất, dọn ngay sau mỗi lần ghi
@@ -29,7 +29,7 @@
 - [x] Dashboard UI (React + Vite + Tailwind, tone xanh Zalo #0068FF): Overview, Sessions (+ drawer xem hội thoại + toggle bot), Contacts, Memory, Providers
 - [x] Providers: đổi provider/model/base URL/API key runtime từ UI (key mã hóa AES-256-GCM, response luôn masked), test kết nối, rollback về env
 - [x] Memory 3 lớp (mô hình ChatGPT/OpenClaw): rolling summary per thread (async sau reply), tool save_memory với quy tắc privacy bất đối xứng (fact học ở DM không bao giờ inject trong group), timestamps
-- [x] Fetch sanitizer chống response lỗi từ 9Router (JSON dính đuôi SSE)
+- [x] Fetch sanitizer chống response lỗi từ Google API (JSON dính đuôi SSE)
 
 ## V2.1 - Accounts + Agents + QR web (2026-07-25, plan: plans/260725-1910-accounts-agents-qr-web/)
 
@@ -160,7 +160,7 @@ trong history - model tự neo vào tiền lệ xấu thay vì tin dữ liệu t
 - [x] Audit lại cả 4 nguồn sống: minhngoc (bảng tại ký tự 656), xs.com.vn (598),
   xoso.net.vn (107), xoso.com.vn (333) - tất cả ra bảng đủ nhãn giải + số
 - [x] **Bắt được bệnh thật nhờ log mới**: lượt 00:17 hiện nguyên hình
-  `steps=1, toolCalls=[], usage toàn 0, không lỗi` - 9Router thỉnh thoảng trả
+  `steps=1, toolCalls=[], usage toàn 0, không lỗi` - Google API thỉnh thoảng trả
   HTTP 200 với completion RỖNG. Chuỗi turn chập chờn (00:05 rỗng, 00:07 chạy ngon
   34k token, 00:17 rỗng) chứng minh là upstream flaky, không phải code bot.
   `maxRetries` của SDK không cứu vì response "thành công"
@@ -168,7 +168,7 @@ trong history - model tự neo vào tiền lệ xấu thay vì tin dữ liệu t
   0 token) -> tự retry 1 lần; vẫn rỗng thì trả lời fallback "đang trục trặc kỹ
   thuật" thay vì im lặng bỏ treo người nhắn. Lượt "chỉ thả reaction" hợp lệ (có
   tool call + token) không dính nhánh này. Log thêm finishReason mỗi lượt
-- [ ] Gốc bệnh nằm ở 9Router (ngoài repo này): soi log router xem vì sao trả 200
+- [ ] Gốc bệnh nằm ở Google API (ngoài repo này): soi log router xem vì sao trả 200
   rỗng - tối 25/07 lặp ít nhất 5 lần
 - [ ] Chưa test Zalo thật: gửi lại ảnh vé - lưu ý history vẫn còn 2 câu thất bại cũ,
   persona mới phải thắng được cái neo đó
@@ -193,12 +193,12 @@ reasoningTokens luôn = 0 - thinking chưa từng bật).
 - [x] Summarizer + nút test kết nối không bật thinking - việc nhẹ, không đốt token
 - [ ] Chưa test Zalo thật: gửi lại ảnh vé, soi log xem reasoningTokens > 0 và
   model có đọc bảng + đối chiếu đúng không. Nếu reasoningTokens vẫn = 0 thì
-  9Router đang nuốt tham số reasoning_effort - phải sửa ở router
+  Google API đang nuốt tham số reasoning_effort - phải sửa ở router
 
 ## V2.5.4 - Giảm token: ảnh mới là khoản chi chính (2026-07-26)
 
 Lượt dò vé đã chạy đúng nhưng tốn 70.824 token input cho 1 lượt (5 request).
-Đo trên dashboard 9Router: request text thuần ~2.600 token, request có ảnh
+Đo trên dashboard Google API: request text thuần ~2.600 token, request có ảnh
 ~12.650 - chênh ~10.000 chính là 4 tấm ảnh (1 mới + 3 nạp lại từ history),
 nhân tiếp với số step vì mỗi step gửi lại toàn bộ hội thoại. Persona chỉ
 ~1.087 token, không phải thủ phạm.
@@ -219,13 +219,13 @@ nhân tiếp với số step vì mỗi step gửi lại toàn bộ hội thoại
   tĩnh sẽ chết trên máy không có `.env`. Chuyển sang truyền `imageQuality` vào
   như cách `botEnabledForThread` của allowlist-filter đang làm
 
-Ghi chú về caching: ban đầu kết luận nhầm là "phải cấu hình ở 9Router". Sau khi
-clone source 9Router về đọc thì hoá ra client TỰ LÀM được - xem V2.5.5 bên dưới.
-9Router còn có trang Token Saver (nén tool output RTK, nén prompt Headroom) - chưa bật.
+Ghi chú về caching: ban đầu kết luận nhầm là "phải cấu hình ở Google API". Sau khi
+clone source Google API về đọc thì hoá ra client TỰ LÀM được - xem V2.5.5 bên dưới.
+Google API còn có trang Token Saver (nén tool output RTK, nén prompt Headroom) - chưa bật.
 
 ## V2.5.5 - Bật prompt caching từ phía bot (2026-07-26)
 
-Clone `9router` (MIT) về `zalo-agent-references/` đọc source, tìm được đường bật
+Clone `google-api` (MIT) về `zalo-agent-references/` đọc source, tìm được đường bật
 caching mà client tự làm - không phải chỉnh gì ở router.
 
 - [x] Chuỗi bằng chứng: `codex.js:420` bơm `body.prompt_cache_key = _currentSessionId`;
@@ -243,7 +243,7 @@ caching mà client tự làm - không phải chỉnh gì ở router.
 - [x] Không tự gắn `cache_control`: đường Anthropic của router xoá sạch rồi tự đặt lại
 - [x] Log thêm `cachedTokens` mỗi lượt để kiểm chứng ngay trong terminal
 - [ ] Chưa test Zalo thật: gửi vài tin trong cùng cuộc chat, kỳ vọng `cachedTokens > 0`
-  từ lượt thứ 2 và `CACHED TOKENS` trên dashboard 9Router tăng
+  từ lượt thứ 2 và `CACHED TOKENS` trên dashboard Google API tăng
 
 ## V2.6 - web_fetch 2 tầng + cấu hình search trên dashboard (2026-07-26)
 
@@ -281,10 +281,10 @@ Bot không tra được giá vàng. Tái hiện ra HAI lỗi riêng biệt, khô
 - [ ] Chưa test Zalo thật: hỏi giá vàng sau khi anh nhập key Brave vào trang Tools
 
 Đã khảo sát và KHÔNG chọn (ghi lại để khỏi khảo sát lại):
-- `POST /v1/search` của 9Router: mọi provider (Tavily, Exa, Brave, Serper...) đều
+- `POST /v1/search` của Google API: mọi provider (Tavily, Exa, Brave, Serper...) đều
   cần API key; chỉ SearXNG `authType: "none"` nhưng phải tự dựng instance. Cùng
   bài toán key mà thêm một tầng
-- `POST /v1/web/fetch` của 9Router: cũng cần key cho firecrawl/tavily/exa. Gọi
+- `POST /v1/web/fetch` của Google API: cũng cần key cho firecrawl/tavily/exa. Gọi
   thẳng r.jina.ai ngắn hơn và không phụ thuộc cấu hình router
 
 ## V2.7 - Tin dài, trạng thái đã xem, hết im lặng khi lỗi (2026-07-26)
@@ -336,7 +336,7 @@ người nhắn không nhận được gì, câu trả lời cũng không vào h
 
 ### Chốt lại 3 con số khả nghi trong log (đo bằng request thật + đọc source router)
 
-Bắt fetch của SDK để soi đúng body đi ra router, kèm đọc source 9Router:
+Bắt fetch của SDK để soi đúng body đi ra router, kèm đọc source Google API:
 
 - **`reasoning_effort` CÓ được gửi**: body ra router là
   `{model, max_tokens, reasoning_effort: "medium", messages}`. Cảnh báo
@@ -357,7 +357,7 @@ Bắt fetch của SDK để soi đúng body đi ra router, kèm đọc source 9R
   lấy từ `input_tokens_details.cached_tokens`, nên số 0 phản ánh đúng upstream.
   Header `x-session-id` đã gửi đúng và ổn định (kiểm chứng: 2 request liên tiếp
   cùng `zalo-agent-c749a3dd...`, prompt 1287 token > ngưỡng cache 1024) mà vẫn
-  miss. Nguyên nhân nằm ngoài repo này - nghi 9Router xoay vòng nhiều tài khoản
+  miss. Nguyên nhân nằm ngoài repo này - nghi Google API xoay vòng nhiều tài khoản
   upstream nên prefix cache không dùng lại được. Cần soi log phía router
 
 - [x] Dọn cảnh báo deprecated in ra mỗi request: `ROUTER_PROVIDER_OPTIONS_KEY`
@@ -384,17 +384,17 @@ Trả món nợ ghi ở cuối V2.7: 1 file 309 dòng gánh 3 việc không liê
 ## V2.9 - Model không vision vẫn dùng được, sidecar đọc ảnh thuê (2026-07-26)
 
 Trả lời câu hỏi của user: "dùng model không hỗ trợ đọc ảnh thì sao?". Trước đây
-bot luôn đính base64 vào request: qua 9Router thì router tự lột ảnh (bot bỗng
+bot luôn đính base64 vào request: qua Google API thì router tự lột ảnh (bot bỗng
 "mù" không báo trước, base64 vẫn tốn băng thông), endpoint khác thì HTTP 400
 chết cả lượt. Research trước khi làm: Hermes `image_input_mode` auto|native|text
 (`agent/image_routing.py`), GoClaw `read_image` tool + vision provider chain,
-9Router `translator/concerns/modality.js` + `/v1/models` trả capabilities.
+Google API `translator/concerns/modality.js` + `/v1/models` trả capabilities.
 
 - [x] Phát hiện vision `auto|on|off` (mặc định auto): tra `GET {baseUrl}/models`,
-  đọc `capabilities.vision` (đúng nguồn icon con mắt trên UI 9Router), cache 10
+  đọc `capabilities.vision` (đúng nguồn icon con mắt trên UI Google API), cache 10
   phút theo baseUrl. Model lạ/combo/endpoint thường không có field -> coi như có
   vision (giữ hành vi cũ). Anthropic trực tiếp luôn true. on/off ép tay cho
-  endpoint ngoài 9Router
+  endpoint ngoài Google API
 - [x] 3 chế độ ảnh mỗi lượt agent (`agent-turn-content.ts`, log `imageMode`):
   native = đính pixel như cũ; describe = sidecar mô tả ảnh thành text; blind =
   bỏ ảnh + ghi chú dặn bot nói thật "không xem được ảnh", history hạ ngân sách
@@ -440,14 +440,14 @@ mù là ảnh bị lột êm, không lỗi, không dấu vết.
 - [x] Reactive fallback (`agent-loop`): lượt native/hybrid có part ảnh mà
   provider ném APICallError 4xx (loại 401/403/429/5xx) -> `markModelNoVision`
   ghi cache âm 10 phút + dựng lại input ở describe/blind (`forceMode`) thử lại
-  1 lần. Đóng nốt lỗ "endpoint ngoài 9Router + model mù + mode auto" - trước
+  1 lần. Đóng nốt lỗ "endpoint ngoài Google API + model mù + mode auto" - trước
   đây chết lượt với câu trục trặc kỹ thuật
 - [x] Cache âm THẮNG kết quả /models lạc quan; anthropic không bao giờ bị đánh
   dấu; `clearVisionDetectionCache` (đổi cấu hình từ dashboard) xóa cả cache âm
 - [x] Test: 346 pass (16 test mới: phân loại combo/unknown, cache âm,
   isImageRejectionError từng mã HTTP, hasImageParts, describe/hybrid của cả
   history lẫn lượt hiện tại với file thật trên đĩa + cache mô tả, forceMode).
-  Test sống trên 9Router thật: 5 case phân loại + cache âm + imageMode đều đúng
+  Test sống trên Google API thật: 5 case phân loại + cache âm + imageMode đều đúng
 - [x] **Đã test thật (2026-07-27)**: gửi ảnh vào combo, chế độ hybrid chạy
   đúng - bot đọc được ảnh cả khi lượt rơi vào thành viên không vision
 
@@ -572,7 +572,7 @@ User chỉ ra hộp thoại `window.confirm` mặc định của trình duyệt 
 ## V3.0 - Bot tự tạo file .docx và .xlsx (2026-07-27, plan: plans/260727-1135-tao-file-docx-xlsx/)
 
 User hỏi bot có tạo được file Word không. Đo thật: **LLM API chỉ trả text** - cả
-DeepSeek trực tiếp lẫn qua 9Router đều không có kênh file (message chỉ có `role`
+DeepSeek trực tiếp lẫn qua Google API đều không có kênh file (message chỉ có `role`
 + `content`, không field nào chứa attachment). IDE code tạo được file là vì IDE
 **chạy code** model viết ra - đường đó không dùng được cho bot Zalo (đọc tin
 người lạ, không ai duyệt lệnh = RCE qua prompt injection).
@@ -715,7 +715,7 @@ fix cứng thì 10 file ra 10 bản giống hệt nhau à. Câu 2 đúng - thi�
 
 File Claude: 6 sheet, 89 dòng, 317 ô, 15.037 ký tự -> model phải viết payload
 JSON ~19.200 ký tự = **~7.100 token**. Trong khi `LLM_MAX_OUTPUT_TOKENS` đang là
-**2.048** - thiếu 3,5 lần. Tra `9router/open-sse/providers/capabilities.js` thì
+**2.048** - thiếu 3,5 lần. Tra `google-api/open-sse/providers/capabilities.js` thì
 `cx/gpt-5.6-sol` maxOutput **128.000**, `ds/deepseek-v4-pro` **50.000** - tức là
 2048 hoàn toàn do mình tự bó, không phải giới hạn model.
 
@@ -802,7 +802,7 @@ Tool `create_image` gọi endpoint OpenAI-compatible `/v1/images/generations`. L
 theo TDD: viết test đỏ trước, xem nó fail đúng lý do, rồi mới viết code - 57 test
 mới, tổng 496 pass.
 
-### Khảo sát trước khi viết dòng code nào (4 lần gọi API thật + đọc source 9Router)
+### Khảo sát trước khi viết dòng code nào (4 lần gọi API thật + đọc source Google API)
 
 - **`?response_format=binary` + JPEG nhẹ hơn 15 lần.** Cùng một ảnh: JSON base64
   PNG 2.4 MB so với binary JPEG 157 KB, mắt không phân biệt được. Đường JSON còn
@@ -1532,7 +1532,7 @@ thành 1,1,2,2,3,3, trông y hệt model đang lặp vô hạn.
 
 **3. Nhận định về `cachedTokens` trong ghi chép này SAI**
 
-Mục treo cũ viết: "executor `cx/` của 9Router không trích usage. Comment trong
+Mục treo cũ viết: "executor `cx/` của Google API không trích usage. Comment trong
 `agent-loop.ts` đang suy luận sai". Đọc lại source thì **ngược lại**:
 `translator/response/openai-responses.js:472` CÓ đọc
 `input_tokens_details.cached_tokens` rồi truyền vào `buildUsage`.
@@ -1545,7 +1545,7 @@ Sự thật nằm ở `translator/concerns/usage.js:5`: `buildUsage` chỉ thêm
 "upstream không báo trường này" về tới client giống hệt nhau.
 
 - [x] Comment trong `agent-loop.ts` viết lại cho đúng: `> 0` là bằng chứng chắc
-  chắn cache trúng; `= 0` KHÔNG kết luận được gì, phải soi dashboard 9Router
+  chắn cache trúng; `= 0` KHÔNG kết luận được gì, phải soi dashboard Google API
 
 Bài học: một kết luận đã kiểm chứng cho trường A không tự động đúng cho trường B
 ở cùng dòng code. Lượt 65 thật đo được `cachedTokens: 0` trên 60.340 token input -
@@ -1708,8 +1708,8 @@ lỗi giống hệt nhau. Chẩn đoán ra hai căn nguyên độc lập.
 
 ### Căn nguyên 1: Cloudflare cắt 524 vì request non-stream
 
-`9router.vuhai.io.vn` bật proxy Cloudflare (xác minh bằng header `Server:
-cloudflare` + `CF-RAY`; grep source 9Router không có chỗ nào phát mã 524).
+`google-api.vuhai.io.vn` bật proxy Cloudflare (xác minh bằng header `Server:
+cloudflare` + `CF-RAY`; grep source Google API không có chỗ nào phát mã 524).
 Cloudflare cắt khi origin chưa trả BYTE ĐẦU trong 100 giây, mà `generateText`
 buộc router gom trọn câu trả lời rồi mới gửi.
 
@@ -1736,7 +1736,7 @@ Lượt streaming chạy LÂU HƠN mốc bị cắt mà vẫn qua - Cloudflare �
   ghi thì promise VẪN resolve với kết quả cụt
 - [x] Bộ bắt lỗi dựng MỚI mỗi lần gọi - dùng chung cả lượt thì lỗi lần trước
   giết luôn lần thử lại đã thành công
-- [x] Bật `includeUsage` cho openai-compatible (mặc định TẮT). 9Router trả
+- [x] Bật `includeUsage` cho openai-compatible (mặc định TẮT). Google API trả
   usage kể cả khi không hỏi nhưng LiteLLM/OpenRouter thì đòi
 - [x] **Nghiệm thu bằng gọi thật**: chạy lại đúng ca đã chết bằng code mới -
   222 giây, `finishReason: stop`, 39.326 ký tự
@@ -1815,8 +1815,8 @@ phải chờ ngần ấy.
 
 ### Còn treo
 
-- [x] `gpt-combo` trên 9Router đã thêm model thứ hai - fallback giờ có chỗ để
-  fall back thật (làm trên dashboard 9Router, không đụng code).
+- [x] `gpt-combo` trên Google API đã thêm model thứ hai - fallback giờ có chỗ để
+  fall back thật (làm trên dashboard Google API, không đụng code).
 - [x] `pnpm eval` 11/11 đạt với model thật (chạy 2 lần: trước và sau bản vá của
   vòng rà tổng). Lưu ý eval chỉ đi đường THUẬN - không ca nào chạm nhánh chữa
   lỗi, nên nó không thể bắt được lớp lỗi mà vòng rà tổng vừa tìm ra.
@@ -2563,7 +2563,7 @@ turnId 166: `Codex did not return an image. Account may not be entitled
 ### Câu lỗi nói sai chuyện
 
 Câu đó không phải của tài khoản, cũng không phải của bot - nó là **nhánh bắt
-tất** trong chính router (`9router/open-sse/handlers/imageProviders/codex.js:124`
+tất** trong chính router (`google-api/open-sse/handlers/imageProviders/codex.js:124`
 và `:194`), bắn ra mỗi khi stream Codex chạy hết mà không thấy
 `image_generation_call` nào có `result`. Phần "Plus/Pro required" là router
 ĐOÁN, không phải điều upstream nói.
@@ -2588,7 +2588,7 @@ KHI stream mở. Đi đường SSE (bot luôn gửi `Accept: text/event-stream`)
 `event: error` nằm trong thân stream nên vòng fallback ở `imageGeneration.js:131`
 không nhìn thấy. Không có cách nào chữa ca này ở phía router.
 
-**Round robin cũng không phải thuốc.** 9router có hai nút trùng tên: một xoay
+**Round robin cũng không phải thuốc.** google-api có hai nút trùng tên: một xoay
 vòng CONNECTION cùng provider (`auth.js:110-150`), một xoay vòng MODEL trong một
 combo (`combo.js:157`). `cx/gpt-5.5-image` là model đơn nên nút thứ hai không
 chạy tới; nút thứ nhất chỉ đổi *chọn tài khoản nào trước*, mà lỗi lộ ra SAU khi
@@ -2664,7 +2664,7 @@ object hoặc boolean. Thấy mảng là chối CẢ REQUEST.
 
 - **"Test kết nối" mù ca này**: nút đó gửi một câu chat trần, KHÔNG kèm tool nào.
   Schema hỏng không có mặt trong request nên xanh là đương nhiên.
-- **9router / OpenAI / Anthropic đều nuốt dạng draft-07**, nên lỗi nằm im suốt
+- **google-api / OpenAI / Anthropic đều nuốt dạng draft-07**, nên lỗi nằm im suốt
   từ ngày viết tool Excel tới lúc đổi nhà cung cấp.
 - **Bộ tool đi kèm MỌI lượt**, nên hỏng một schema là hỏng mọi tin nhắn, không
   riêng lượt nào nhờ làm Excel. Đây là chỗ khiến nó thành lỗi chặn hoàn toàn
@@ -2764,7 +2764,7 @@ tiếng Việt, không lỗi nào.
   người dùng đổi ô "Kiểu kết nối" (form chỉ ẩn ô, không xóa giá trị):
   gỡ đuôi `/openai` (lớp giả, trỏ vào là 404 - mà nút chọn nhanh cũ điền đúng
   URL đó nên người dùng cũ chắc chắn có), và BỎ HẲN base URL của hãng khác
-  (OpenRouter, 9Router) thay vì gửi khóa Google sang bên thứ ba. Khớp host bằng
+  (OpenRouter, Google API) thay vì gửi khóa Google sang bên thứ ba. Khớp host bằng
   neo `(^|\.)googleapis\.com$` chứ không phải "có chứa" - `googleapis.com.evil.example`
   lọt qua phép khớp lỏng.
 - **Mức nghĩ**: Gemini có 4 nấc còn bot có 5. `off` -> `minimal` (Gemini 3 không
@@ -2797,7 +2797,7 @@ hình cũ): 2 step, 1 lần gọi tool, trả lời tiếng Việt, không 400.
 
 ### Việc còn treo
 
-- Gemini qua ROUTER (9Router proxy) vẫn sẽ dính lỗi chữ ký, vì đường đó là
+- Gemini qua ROUTER (Google API proxy) vẫn sẽ dính lỗi chữ ký, vì đường đó là
   `openai-compatible`. Chưa gặp nên chưa làm; nếu cần thì seam `fetch` ở
   `llm-provider.ts` là chỗ để vá.
 - `isImageRejectionError` vẫn khớp mọi 4xx cho nhánh router. Suy luận chắc hơn
@@ -2976,7 +2976,7 @@ rồi chạy lại: **đỏ y hệt trên code cũ**. Cả hai đều là case �
 lịch sử), và bộ eval này vốn được chỉnh trên model của router chứ không phải
 `gemini-3.5-flash-lite`.
 
-KHÔNG chứng minh được là "do model yếu": key tạm của 9router đã bị thu hồi (401)
+KHÔNG chứng minh được là "do model yếu": key tạm của google-api đã bị thu hồi (401)
 nên không chạy đối chứng trên model router được. Để ngỏ, đừng chép lại như thể
 đã kết luận.
 

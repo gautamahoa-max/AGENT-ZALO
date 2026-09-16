@@ -40,14 +40,14 @@ export function ContactsPage({ accounts }: { accounts: AccountInfo[] }) {
     <div>
       <PageHeader
         icon={IconUsers}
-        title="Contacts"
-        subtitle="Tự thu thập từ mọi tin nhắn đến, kể cả người bot không trả lời"
+        title="Danh bạ"
+        subtitle="Danh bạ khách hàng thu thập tự động từ tin nhắn đến"
       />
 
       <ListToolbar
         query={query}
         onQuery={setQuery}
-        placeholder="Tìm theo tên hoặc user ID..."
+        placeholder="Tìm theo tên hoặc ID người dùng..."
         filter={<AccountFilter accounts={accounts} value={accountFilter} onChange={setAccountFilter} />}
         page={page}
         hasMore={hasMore}
@@ -57,13 +57,13 @@ export function ContactsPage({ accounts }: { accounts: AccountInfo[] }) {
       <TableShell
         headers={
           showAccountColumn
-            ? ["Tên", "Account", "User ID", "Số tin", "Lần đầu", "Gần nhất"]
-            : ["Tên", "User ID", "Số tin", "Lần đầu", "Gần nhất"]
+            ? ["Tên", "Tài khoản", "ID Người dùng", "Số tin", "Lần đầu", "Gần nhất"]
+            : ["Tên", "ID Người dùng", "Số tin", "Lần đầu", "Gần nhất"]
         }
         minWidth={showAccountColumn ? 860 : 760}
       >
         {items.length === 0 && (
-          <EmptyRow colSpan={showAccountColumn ? 6 : 5} text="Chưa có contact nào" />
+          <EmptyRow colSpan={showAccountColumn ? 6 : 5} text="Chưa có liên hệ nào trong danh bạ" />
         )}
         {items.map((contact) => (
           <tr

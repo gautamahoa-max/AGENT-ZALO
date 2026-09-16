@@ -7,6 +7,9 @@ import { createScheduleTaskTool } from "./schedule-task-tool.js";
 import { createSaveMemoryTool } from "./save-memory-tool.js";
 import { createSendFileTool } from "./send-file-tool.js";
 import { createTagMemberTool } from "./tag-member-tool.js";
+import { createAssignLabelTool } from "./assign-label-tool.js";
+import { createNotifyVipLeadTool } from "./notify-vip-lead-tool.js";
+import { createExportMortgagePlanTool } from "./export-mortgage-plan-tool.js";
 import type { ToolDefinition } from "./tool-catalog-types.js";
 
 /**
@@ -107,5 +110,31 @@ export const ACTION_TOOL_DEFINITIONS: ToolDefinition[] = [
     // Luật số 1 của Hermes: job không được đẻ job
     runsInScheduledTurn: false,
     build: (ctx) => createScheduleTaskTool(ctx),
+  },
+  {
+    key: "assign_label",
+    label: "Gắn nhãn",
+    description: "Gắn nhãn phân loại khách hàng",
+    group: "action",
+    runsInScheduledTurn: true,
+    build: (ctx) => createAssignLabelTool(ctx),
+  },
+  {
+    key: "notify_vip_lead",
+    label: "Báo khách VIP qua Gmail",
+    description:
+      "Gửi email thông báo khẩn cấp tới Gmail của Hoà (Gautamahoa@gmail.com) khi phát hiện khách VIP (vay lớn, mua BĐS cao cấp) hoặc khách chốt lịch hẹn cà phê",
+    group: "action",
+    runsInScheduledTurn: false,
+    build: (ctx) => createNotifyVipLeadTool(ctx),
+  },
+  {
+    key: "export_mortgage_plan",
+    label: "Xuất bảng tính gốc lãi dự án (Excel)",
+    description:
+      "Tự động điền các thông số vay vốn vào file Excel bảng tính gốc lãi chuẩn của dự án (GLADIA hoặc BCONS) và GỬI THẲNG file .xlsx qua Zalo cho khách hàng",
+    group: "action",
+    runsInScheduledTurn: false,
+    build: (ctx) => createExportMortgagePlanTool(ctx),
   },
 ];

@@ -73,6 +73,13 @@ export function setMessageImages(messageId: number, images: string[]): void {
   setImagesStmt.run(JSON.stringify(images), messageId);
 }
 
+const countStmt = db.prepare("SELECT COUNT(*) as count FROM messages WHERE account_id = ? AND thread_id = ?");
+
+export function countMessages(accountId: string, threadId: string): number {
+  const row = countStmt.get(accountId, threadId) as { count: number } | undefined;
+  return row?.count ?? 0;
+}
+
 export function getRecentMessages(
   accountId: string,
   threadId: string,

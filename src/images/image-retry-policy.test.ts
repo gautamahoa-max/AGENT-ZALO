@@ -15,7 +15,7 @@ describe("laLoiVeHutAnh - lỗi nào đáng gọi lại provider", () => {
 
   it("nhận đúng câu router đã bắn ra trên Zalo thật", () => {
     // Chép nguyên văn từ log turnId 166 - câu này là nhánh bắt tất của
-    // 9router, phần "Plus/Pro required" chỉ là suy đoán của nó
+    // google-api, phần "Plus/Pro required" chỉ là suy đoán của nó
     const that = new Error("Codex did not return an image. Account may not be entitled (Plus/Pro required).");
     assert.equal(laLoiVeHutAnh(that), true);
   });

@@ -16,6 +16,7 @@ export type ParsedMessage = {
   senderName: string;
   text: string;
   images: IncomingImage[];
+  audioUrl?: string;
   msgId: string;
   cliMsgId: string;
   isSelf: boolean;
@@ -53,31 +54,38 @@ export function parseIncomingMessage(
   let text = "";
   const images: IncomingImage[] = [];
 
+  let audioUrl: string | undefined;
+
   if (typeof content === "string") {
     text = content;
   } else if (content && typeof content === "object") {
-    // Tin nhắn media: content là object có href/thumb + title (caption)
     text = String(content.title ?? content.description ?? "");
-    // Zalo gửi kèm nhiều cỡ của cùng 1 ảnh. Lấy `hd` (bản to nhất) là tốn
-    // token vô ích: ảnh HD 977x2128 ~2500 token mỗi lần vào context.
     const picked = msgType.includes("photo")
       ? pickImageVariant(content as Record<string, unknown>, imageQuality)
       : null;
     if (picked) {
       images.push({ url: picked.url });
     }
+    if (msgType.toLowerCase().includes("voice")) {
+      console.log("=== RAW VOICE MESSAGE DATA ===");
+      console.log(JSON.stringify(data, null, 2));
+      console.log("==============================");
+      
+      if (typeof content.href === "string") {
+        audioUrl = content.href;
+      }
+    }
   }
 
-  if (!text.trim() && images.length === 0) {
+  if (!text.trim() && images.length === 0 && msgType) {
     const typeLower = msgType.toLowerCase();
+    const senderNoun = message?.isSelf ? "Bạn" : "Khách";
     if (typeLower.includes("sticker")) {
-      text = "[Khách gửi một icon/sticker]";
+      text = `[${senderNoun} gửi một icon/sticker]`;
     } else if (typeLower.includes("voice")) {
-      text = "[Khách gửi tin nhắn thoại - Bạn không nghe được, hãy nhờ khách nhắn chữ]";
+      text = `[${senderNoun} gửi tin nhắn thoại]`;
     } else if (typeLower.includes("undo")) {
-      text = "[Khách đã thu hồi tin nhắn]";
-    } else {
-      text = "[Khách gửi một icon/nhãn dán]";
+      text = `[${senderNoun} đã thu hồi tin nhắn]`;
     }
   }
 
@@ -93,6 +101,7 @@ export function parseIncomingMessage(
     senderName: String(data.dName ?? "Người dùng"),
     text,
     images,
+    audioUrl,
     msgId: String(data.msgId ?? ""),
     cliMsgId: String(data.cliMsgId ?? ""),
     isSelf: Boolean(message?.isSelf),

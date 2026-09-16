@@ -20,7 +20,7 @@ const log = createLogger("llm-provider");
 // Chỉ bọc cho đường router proxy - Anthropic trực tiếp không có bug này
 const sanitizingFetch = createSanitizingFetch({
   onSanitized: () =>
-    log.warn("Router trả JSON dính đuôi SSE 'data: [DONE]' - đã cắt bỏ (bug 9Router, nên fix tận gốc)"),
+    log.warn("Router trả JSON dính đuôi SSE 'data: [DONE]' - đã cắt bỏ (bug Google API, nên fix tận gốc)"),
 });
 
 /**
@@ -65,7 +65,7 @@ export type ModelOverride = {
 /**
  * Chọn model theo thứ tự ưu tiên: override của agent (não) -> runtime_settings
  * (dashboard) -> env. Gọi mỗi lượt agent nên đổi từ UI có hiệu lực ngay.
- * - openai-compatible: router proxy (9Router, LiteLLM, OpenRouter...) qua base URL
+ * - openai-compatible: router proxy (Google API, LiteLLM, OpenRouter...) qua base URL
  * - anthropic: gọi thẳng API Anthropic
  * API key/base URL luôn lấy từ cấu hình chung (per-agent key là chuyện sau).
  */
@@ -129,7 +129,7 @@ export function resolveLanguageModel(
         // streaming (xem stream-text-result.ts), mà provider này mặc định KHÔNG
         // gửi cờ đó - với provider chỉ trả usage khi được hỏi thì mọi số token
         // của bot âm thầm về 0: log sai, bảng usage sai, trần token mất tác dụng.
-        // Đo trên 9Router thì nó trả usage kể cả khi không hỏi, nhưng cả điểm
+        // Đo trên Google API thì nó trả usage kể cả khi không hỏi, nhưng cả điểm
         // của `openai-compatible` là đổi provider bằng env mà không sửa code -
         // LiteLLM/OpenRouter/vLLM đều đòi cờ này.
         includeUsage: true,
@@ -174,7 +174,7 @@ export function resolveLanguageModel(
  *    `/v1beta` và lớp giả OpenAI ở `/v1beta/openai`. Provider này nói API
  *    riêng, trỏ vào lớp giả kia là 404. Nút chọn nhanh "Google Gemini" trước
  *    đây điền đúng cái đuôi ấy, nên cấu hình đang lưu chắc chắn có.
- * 2. BỎ HẲN base URL của hãng KHÁC. Người đang chạy OpenRouter hay 9Router mà
+ * 2. BỎ HẲN base URL của hãng KHÁC. Người đang chạy OpenRouter hay Google API mà
  *    đổi sang Google thì URL cũ vẫn còn - gửi khóa Google sang đó là vừa lộ
  *    khóa sang bên thứ ba vừa nhận 401 khó hiểu. Cùng loại tai nạn mà
  *    `doiProviderAnToan` chặn ở tầng provider, nên chặn theo cùng cách: thà bỏ

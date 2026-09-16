@@ -1,3 +1,5 @@
+import { UsagePage } from "./pages/UsagePage";
+
 import { useCallback, useEffect, useState } from "react";
 import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import type { AccountInfo } from "./dashboard-api-client";
@@ -19,6 +21,8 @@ import { LogsPage } from "./pages/logs-page";
 import { TracePage } from "./pages/trace-page";
 import { TuningPage } from "./pages/tuning-page";
 import { ToolsPage } from "./pages/tools-page";
+import { RoiPage } from "./pages/roi-page";
+import { ExperimentsPage } from "./pages/experiments-page";
 import { anhNen } from "./shared/background-image";
 import { IconMenu } from "./shared/dashboard-icons";
 import { useTheme } from "./shared/use-theme";
@@ -113,12 +117,15 @@ function DashboardShell() {
         >
           <Routes>
             <Route path="/" element={<OverviewPage />} />
+            <Route path="/roi" element={<RoiPage />} />
+            <Route path="/usage" element={<UsagePage />} />
             <Route path="/sessions" element={<SessionsPage accounts={accounts} />} />
             <Route path="/schedule" element={<SchedulePage accounts={accounts} />} />
             <Route path="/contacts" element={<ContactsPage accounts={accounts} />} />
             <Route path="/memory" element={<MemoryPage accounts={accounts} />} />
             <Route path="/accounts" element={<AccountsPage />} />
             <Route path="/agents" element={<AgentsPage />} />
+            <Route path="/experiments" element={<ExperimentsPage />} />
             {/* Phải đứng TRƯỚC "/agents/:id" - và đường dẫn mở đầu bằng gạch
                 dưới nên không id agent hợp lệ nào che được nó, xem `agent-draft.ts` */}
             <Route path={DUONG_DAN_TAO} element={<AgentCreatePage />} />

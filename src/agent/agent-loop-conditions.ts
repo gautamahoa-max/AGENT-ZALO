@@ -13,7 +13,7 @@
  */
 
 /**
- * Chữ ký "router trả completion rỗng": 9Router thỉnh thoảng trả HTTP 200 với
+ * Chữ ký "router trả completion rỗng": Google API thỉnh thoảng trả HTTP 200 với
  * message trống trơn - không text, không tool call, usage = 0. SDK coi đó là
  * thành công nên maxRetries không cứu. Phân biệt được với lượt "chỉ thả
  * reaction" hợp lệ: lượt đó CÓ tool call và CÓ token.

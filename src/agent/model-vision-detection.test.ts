@@ -35,7 +35,7 @@ beforeEach(() => {
   llmStore.clearLlmSettings();
 });
 
-/** Response /models đúng dạng đo được trên 9Router thật (2026-07-26) */
+/** Response /models đúng dạng đo được trên Google API thật (2026-07-26) */
 const routerPayload = {
   data: [
     { id: "cx/gpt-5.6-sol", owned_by: "cx", capabilities: { vision: true } },
@@ -191,7 +191,7 @@ describe("markModelNoVision - cache âm của reactive fallback", () => {
 });
 
 /**
- * Gemini đọc ảnh được, và `/models` là API riêng của 9Router - gọi thẳng Google
+ * Gemini đọc ảnh được, và `/models` là API riêng của Google API - gọi thẳng Google
  * thì không có endpoint đó. Đã dính thật 06/08/2026: lượt Gemini chết vì thiếu
  * `thought_signature` (chẳng liên quan gì tới ảnh) nhưng `isImageRejectionError`
  * khớp MỌI 4xx và lịch sử thread có ảnh cũ, nên bot ghi nhớ "model mù" rồi bỏ

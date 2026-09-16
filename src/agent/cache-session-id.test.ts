@@ -56,7 +56,7 @@ describe("cacheSessionHeaders", () => {
     assert.deepEqual(cacheSessionHeaders(true, "acc-chinh", ""), {});
   });
 
-  it("tên header khớp SESSION_HEADER_KEYS của 9Router - lệch là cache im lặng không chạy", () => {
+  it("tên header khớp SESSION_HEADER_KEYS của Google API - lệch là cache im lặng không chạy", () => {
     assert.equal(CACHE_SESSION_HEADER, "x-session-id");
   });
 });

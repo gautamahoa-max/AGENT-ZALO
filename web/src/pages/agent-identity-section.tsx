@@ -112,10 +112,10 @@ export function AgentIdentitySection({
             value={form.persona}
             onChange={(e) => onChange({ persona: e.target.value })}
             placeholder="Bạn là trợ lý chăm sóc khách hàng, xưng 'em' với khách..."
-            maxLength={8000}
+            maxLength={50000}
           />
           <p className="mt-2 text-[12px] text-ink-soft">
-            {form.persona.length.toLocaleString("vi-VN")} / 8.000 ký tự
+            {form.persona.length.toLocaleString("vi-VN")} / 50.000 ký tự
           </p>
         </AgentFormField>
       </AgentFormRow>

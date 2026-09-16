@@ -211,6 +211,59 @@ function boSentinel(text: string, daSua: string[]): string {
   return giu.join("\n");
 }
 
+function boSuyNghiNoiTam(text: string, daSua: string[]): string {
+  if (!text.trim()) return text;
+
+  let cleaned = text;
+
+  // 1. Dọn mẫu "Đã ... - giờ ... ." hoặc "Đã gửi file... ." ở đầu câu
+  const sauTienTo = cleaned
+    .replace(/^[ \t]*[Đđ]ã (?:gửi|lưu|tạo|gọi|thực hiện|xử lý|chạy)[^.?!]+?[-–—][^.?!]+?[.:?!]\s*/i, "")
+    .replace(/^[ \t]*[Đđ]ã (?:gửi|lưu|tạo|gọi|thực hiện|xử lý|chạy)[^.?!]+?[.:?!]\s*/i, "")
+    .replace(/^[ \t]*(?:Áp dụng (?:kịch bản|quy tắc|KB\d+)|Theo (?:kịch bản|KB\d+)|Kịch bản KB\d+)\s*[:–—.]\s*/i, "")
+    .replace(/^[ \t]*(?:Lời thoại trực tiếp|Lời thoại|Phản hồi khách|Phản hồi)\s*[:–—.]\s*/i, "");
+
+  if (sauTienTo !== cleaned) {
+    daSua.push("suy nghĩ nội tâm");
+    cleaned = sauTienTo;
+  }
+
+  // 2. Dọn các khối nháp tính toán ở ngôi thứ 3 (Bắt đầu bằng "Khách vay...", "Khách hàng...", "Dữ liệu...", "Bài toán...")
+  // Khi theo sau là câu thoại trực tiếp gửi khách ("Vay ...", "Dạ...", "Em...", "Chào...", "Anh/Chị...")
+  const sauKhoiNhap = cleaned.replace(
+    /^[ \t]*(?:Khách(?: hàng)? (?:vay|cần|muốn|hỏi|yêu cầu|đang|tìm)|Dữ liệu(?: đọc được| đầu vào)?|Số liệu nguồn|Đối chiếu từng mục|Bài toán|Phân tích bài toán|Tính toán chi tiết|Nháp tính toán)[\s\S]*?\n\s*(?=(?:Vay |Dạ |Em |Chào |Anh |Chị |Tôi |Mình |Cảm ơn|[A-ZÀ-Ỹ][a-zà-ỹ]+ (?:ơi|ạ|nhé|nha)))/i,
+    "",
+  );
+
+  if (sauKhoiNhap !== cleaned) {
+    daSua.push("khối nháp tính toán");
+    cleaned = sauKhoiNhap;
+  }
+
+  // 3. Dọn các dòng suy nghĩ riêng biệt
+  const lines = cleaned.split(/\r?\n/);
+  const filtered = lines
+    .filter((line) => {
+      const l = line.trim().toLowerCase();
+      if (
+        l.startsWith("suy nghĩ:") ||
+        l.startsWith("phân tích:") ||
+        l.startsWith("đánh giá:") ||
+        l.startsWith("lập dàn ý:") ||
+        l.startsWith("bước 1:") ||
+        l.startsWith("dữ liệu đọc được:") ||
+        l.startsWith("số liệu nguồn:")
+      ) {
+        daSua.push("dòng suy nghĩ");
+        return false;
+      }
+      return true;
+    })
+    .map((line) => line.replace(/^[ \t]*(?:Lời thoại trực tiếp|Lời thoại|Phản hồi)\s*[:–—.]\s*/i, ""));
+
+  return filtered.join("\n");
+}
+
 /** Câu trả lời có mẩu chữ đặc trưng của system prompt không */
 export function coDauHieuRoPrompt(text: string): boolean {
   return DAU_HIEU_RO_PROMPT.some((d) => text.includes(d));
@@ -248,6 +301,7 @@ export function lamSachTraLoi(text: string): KetQuaLamSach {
   ra = boDongPhanCachBang(ra, daSua);
   ra = boTheMau(ra, daSua);
   ra = boSentinel(ra, daSua);
+  ra = boSuyNghiNoiTam(ra, daSua);
 
   return { text: traKhoiCodeVe(ra, khoi), daSua, chan: false };
 }
@@ -273,5 +327,7 @@ export function lamSachGiuDinhDang(text: string): KetQuaLamSach {
   const daSua: string[] = [];
   // NUL không phải markdown, là rác - không có lý do gì gửi nó lên Zalo
   const sachNul = text.includes(MOC_KHOI) ? text.split(MOC_KHOI).join("") : text;
-  return { text: boSentinel(sachNul, daSua), daSua, chan: false };
+  let ra = boSentinel(sachNul, daSua);
+  ra = boSuyNghiNoiTam(ra, daSua);
+  return { text: ra, daSua, chan: false };
 }

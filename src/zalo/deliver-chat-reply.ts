@@ -25,12 +25,34 @@ export type KetQuaGiao = {
   hong: boolean;
 };
 
+/**
+ * Chuẩn hóa các gạch đầu dòng (-) và câu lưu ý thành từng dòng riêng biệt
+ * Chữa triệt để tình trạng model viết dồn dập các gạch đầu dòng trên cùng một dòng
+ */
+export function formatCleanBulletLines(text: string): string {
+  // 1. Tách gạch đầu dòng sau dấu hai chấm hoặc sau dấu ngắt câu: ": -" -> ":\n- ", ". -" -> ".\n- "
+  let t = text.replace(/(:\s*|[.!?]\s+)-\s+/g, (m, p) => p.trim() + "\n- ");
+  // 2. Tách gạch đầu dòng sau dấu đóng ngoặc: ")... - " -> ")\n- "
+  t = t.replace(/\)\s*-\s+/g, ")\n- ");
+  // 3. Tách câu Lưu ý thành dòng riêng thoáng mắt: "...! (Lưu ý:" -> "...!\n\n(Lưu ý:"
+  t = t.replace(/([.!?])\s*(\([Ll]ưu ý:)/g, "$1\n\n$2");
+  // 4. Tách câu hỏi / kết luận sau câu lưu ý hoặc đoạn trong ngoặc đóng câu: "...). Sếp..." -> "...).\n\nSếp..."
+  t = t.replace(/(\)[.!?]+|\.\))\s+([A-ZÀ-Ỹ0-9])/g, "$1\n\n$2");
+  // 5. Tách câu hỏi kết luận / chốt hạ ở cuối gạch đầu dòng cuối cùng nếu bị dính liền
+  t = t.replace(/(-\s+[^\n]+?\.)\s+([A-ZÀ-Ỹ0-9][^\n]+?[?!😊🤝✨])/g, "$1\n\n$2");
+  // 6. Chuẩn hóa không để vượt quá 2 dấu xuống dòng liên tiếp
+  t = t.replace(/\n{3,}/g, "\n\n");
+  return t;
+}
+
 export async function deliverChatReply(
   target: ReplyTarget,
   accountId: string,
   threadId: string,
   text: string,
 ): Promise<KetQuaGiao> {
+  // Chuẩn hóa cấu trúc xuống dòng cho các gạch đầu dòng và lưu ý
+  text = formatCleanBulletLines(text);
   // Lớp làm sạch CUỐI trước khi chữ ra Zalo. Hai đường khác nhau ở chỗ dấu
   // markdown bị XÓA hay được DỊCH thành định dạng thật của Zalo; lá chắn rò
   // system prompt và luật `[SILENT]` thì cả hai đều có.
@@ -50,32 +72,31 @@ export async function deliverChatReply(
     log.warn({ daSua: sach.daSua }, "Đã làm sạch câu trả lời trước khi gửi");
   }
 
-  // Dịch markdown thành `Style` của Zalo. Chữ TRẦN sau bước này mới là chữ
-  // người dùng thấy, nên nó cũng là chữ ghi vào history bên dưới.
-  const { text: chuGui, styles } = dinhDangNeuBat(sach.text);
+  const parts = sach.text.split('|||');
+  let finalDelivered = "";
+  let hasError = false;
 
-  // Kiểm rỗng SAU khi dịch: câu chỉ toàn dấu markdown (vd đúng một hàng rào
-  // code trống) còn chữ trước bước này nhưng rỗng sau, gửi đi là gửi tin trắng.
-  if (!chuGui.trim()) {
-    log.debug("Câu trả lời rỗng sau khi làm sạch - không gửi");
-    return { daGui: "", hong: false };
+  for (let i = 0; i < parts.length; i++) {
+    const pText = parts[i].trim();
+    if (!pText) continue;
+
+    const { text: chuGui, styles } = dinhDangNeuBat(pText);
+    
+    if (!chuGui.trim()) continue;
+
+    const reply = await sendReplyInParts(target, chuGui, styles);
+    
+    if (reply.deliveredText) {
+      appendMessage(accountId, threadId, { role: "assistant", content: reply.deliveredText });
+      finalDelivered += (finalDelivered ? "\n" : "") + reply.deliveredText;
+    }
+
+    if (reply.error) {
+      await notifyTechnicalError(target);
+      hasError = true;
+      break;
+    }
   }
 
-  // Tin dài bị Zalo chặn (error_code 118) nên phải cắt thành nhiều đoạn
-  const reply = await sendReplyInParts(target, chuGui, styles);
-
-  // Chỉ ghi phần ĐÃ gửi được: history phải khớp cái người dùng nhìn thấy. Ghi
-  // chữ ĐÃ LÀM SẠCH chứ không phải chữ gốc - lệch thì lượt sau model đọc lại
-  // history, thấy chính nó từng viết markdown và tưởng thế là được.
-  if (reply.deliveredText) {
-    appendMessage(accountId, threadId, { role: "assistant", content: reply.deliveredText });
-  }
-
-  // Gửi dở giữa chừng cũng phải nói, đừng để người ta ngồi đợi nốt phần sau
-  if (reply.error) {
-    await notifyTechnicalError(target);
-    return { daGui: reply.deliveredText, hong: true };
-  }
-
-  return { daGui: reply.deliveredText, hong: false };
+  return { daGui: finalDelivered, hong: hasError };
 }

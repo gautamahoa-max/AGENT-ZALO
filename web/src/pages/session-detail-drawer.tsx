@@ -115,6 +115,25 @@ export function SessionDetailDrawer({
     }
   }
 
+  async function xoaHoanToan() {
+    const ok = await confirm({
+      title: "Xóa hoàn toàn cuộc trò chuyện này?",
+      message:
+        "Toàn bộ tin nhắn, lịch sử ngữ cảnh, ảnh và thông tin cuộc trò chuyện sẽ bị xóa hoàn toàn khỏi hệ thống. Không thể hoàn tác.",
+      confirmLabel: "Xóa hoàn toàn",
+      tone: "danger",
+    });
+    if (!ok) return;
+    setDangXoaNguCanh(true);
+    try {
+      await api.deleteThread(thread.accountId, thread.threadId);
+      onDoiDuLieu?.();
+      onClose();
+    } finally {
+      setDangXoaNguCanh(false);
+    }
+  }
+
   async function loadOlder() {
     const oldestId = messages[0]?.id;
     if (!oldestId) return;
@@ -268,16 +287,26 @@ export function SessionDetailDrawer({
               />
               <span>Xóa luôn những điều bot đã ghi nhớ học được trong cuộc trò chuyện này</span>
             </label>
-            <button
-              type="button"
-              onClick={xoaNguCanh}
-              disabled={dangXoaNguCanh}
-              className="rounded-lg border border-rose-200 dark:border-rose-900 px-3 py-1.5 text-[13px] font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 disabled:opacity-50"
-            >
-              {dangXoaNguCanh ? "Đang xóa..." : "Xóa sạch ngữ cảnh"}
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={xoaNguCanh}
+                disabled={dangXoaNguCanh}
+                className="rounded-lg border border-line px-3 py-1.5 text-[13px] font-medium text-ink-soft hover:bg-tile hover:text-ink disabled:opacity-50"
+              >
+                {dangXoaNguCanh ? "Đang xử lý..." : "Xóa sạch ngữ cảnh"}
+              </button>
+              <button
+                type="button"
+                onClick={xoaHoanToan}
+                disabled={dangXoaNguCanh}
+                className="rounded-lg border border-rose-200 dark:border-rose-900 bg-rose-50/50 dark:bg-rose-950/20 px-3 py-1.5 text-[13px] font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 disabled:opacity-50"
+              >
+                {dangXoaNguCanh ? "Đang xóa..." : "Xóa cuộc trò chuyện"}
+              </button>
+            </div>
             <p className="mt-1.5 text-[11px] leading-relaxed text-ink-soft/70">
-              Bot quên hẳn cuộc trò chuyện này và bắt đầu lại từ đầu. Lịch hẹn đang chờ vẫn giữ.
+              "Xóa sạch ngữ cảnh": Bot quên tin nhắn cũ để bắt đầu lại. "Xóa cuộc trò chuyện": Xóa bỏ vĩnh viễn khỏi danh sách.
             </p>
           </div>
         )}

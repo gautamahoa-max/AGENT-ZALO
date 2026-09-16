@@ -18,7 +18,7 @@ after(async () => {
 });
 
 describe("isEmptyRouterCompletion", () => {
-  it("chữ ký glitch 9Router: text rỗng + không tool call + 0 token", () => {
+  it("chữ ký glitch Google API: text rỗng + không tool call + 0 token", () => {
     assert.equal(
       loop.isEmptyRouterCompletion({ text: "", toolCallCount: 0, totalTokens: 0 }),
       true,

@@ -4,6 +4,7 @@ import { api } from "../dashboard-api-client";
 import { PageHeader } from "../layout/page-header";
 import { IconChat } from "../shared/dashboard-icons";
 import { AccountFilter, accountLabel } from "../shared/account-filter";
+import { useConfirmDialog } from "../shared/confirm-dialog";
 import {
   Badge,
   EmptyRow,
@@ -22,6 +23,7 @@ export function SessionsPage({ accounts }: { accounts: AccountInfo[] }) {
   const [accountFilter, setAccountFilter] = useState("");
   const [page, setPage] = useState(0);
   const [openThread, setOpenThread] = useState<ThreadItem | null>(null);
+  const { confirm, confirmDialog } = useConfirmDialog();
 
   const showAccountColumn = accounts.length > 1;
 
@@ -43,18 +45,35 @@ export function SessionsPage({ accounts }: { accounts: AccountInfo[] }) {
     reload();
   }
 
+  async function handleDeleteThread(t: ThreadItem) {
+    const ok = await confirm({
+      title: "Xóa cuộc trò chuyện này?",
+      message: `Toàn bộ tin nhắn, lịch sử ngữ cảnh, ảnh và thông tin của cuộc trò chuyện với "${t.displayName || t.threadId}" sẽ bị xóa hoàn toàn khỏi hệ thống. Không thể hoàn tác.`,
+      confirmLabel: "Xóa cuộc trò chuyện",
+      tone: "danger",
+    });
+    if (!ok) return;
+
+    try {
+      await api.deleteThread(t.accountId, t.threadId);
+      reload();
+    } catch (err: any) {
+      alert("Lỗi khi xóa cuộc trò chuyện: " + (err.message || String(err)));
+    }
+  }
+
   return (
     <div>
       <PageHeader
         icon={IconChat}
-        title="Sessions"
-        subtitle="Mỗi thread (chat riêng / nhóm) là một session, ngữ cảnh giữ trong SQLite"
+        title="Cuộc trò chuyện"
+        subtitle="Mỗi hội thoại (chat riêng / nhóm) lưu giữ toàn bộ ngữ cảnh trong cơ sở dữ liệu"
       />
 
       <ListToolbar
         query={query}
         onQuery={setQuery}
-        placeholder="Tìm theo tên hoặc thread ID..."
+        placeholder="Tìm theo tên hoặc ID hội thoại..."
         filter={<AccountFilter accounts={accounts} value={accountFilter} onChange={setAccountFilter} />}
         page={page}
         hasMore={hasMore}
@@ -64,13 +83,13 @@ export function SessionsPage({ accounts }: { accounts: AccountInfo[] }) {
       <TableShell
         headers={
           showAccountColumn
-            ? ["Tên", "Account", "Loại", "Tin nhắn", "Token", "Tin cuối", "Bot", ""]
+            ? ["Tên", "Tài khoản", "Loại", "Tin nhắn", "Token", "Tin cuối", "Bot", ""]
             : ["Tên", "Loại", "Tin nhắn", "Token", "Tin cuối", "Bot", ""]
         }
         minWidth={showAccountColumn ? 960 : 860}
       >
         {items.length === 0 && (
-          <EmptyRow colSpan={showAccountColumn ? 8 : 7} text="Chưa có session nào" />
+          <EmptyRow colSpan={showAccountColumn ? 8 : 7} text="Chưa có cuộc trò chuyện nào" />
         )}
         {items.map((t) => (
           <tr
@@ -93,7 +112,7 @@ export function SessionsPage({ accounts }: { accounts: AccountInfo[] }) {
             )}
             <td className="px-4 py-3">
               <Badge tone={t.threadType === 1 ? "amber" : "blue"} dot={false}>
-                {t.threadType === 1 ? "Group" : "Direct"}
+                {t.threadType === 1 ? "Nhóm" : "Trực tiếp"}
               </Badge>
             </td>
             <td className="px-4 py-3 text-ink-soft">{formatNumber(t.messageCount)}</td>
@@ -117,13 +136,23 @@ export function SessionsPage({ accounts }: { accounts: AccountInfo[] }) {
                 />
               </button>
             </td>
-            <td className="px-4 py-3">
-              <button
-                onClick={() => setOpenThread(t)}
-                className="text-[13px] font-medium text-zalo-600 hover:underline"
-              >
-                Xem
-              </button>
+            <td className="px-4 py-3 text-right">
+              <div className="flex items-center justify-end gap-2.5">
+                <button
+                  onClick={() => setOpenThread(t)}
+                  className="text-[13px] font-medium text-zalo-600 hover:underline"
+                >
+                  Xem
+                </button>
+                <span className="text-line/80">•</span>
+                <button
+                  onClick={() => handleDeleteThread(t)}
+                  className="text-[13px] font-medium text-rose-600 dark:text-rose-400 hover:underline"
+                  title="Xóa cuộc trò chuyện"
+                >
+                  Xóa
+                </button>
+              </div>
             </td>
           </tr>
         ))}
@@ -136,6 +165,7 @@ export function SessionsPage({ accounts }: { accounts: AccountInfo[] }) {
           onDoiDuLieu={reload}
         />
       )}
+      {confirmDialog}
     </div>
   );
 }

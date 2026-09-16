@@ -46,7 +46,7 @@ describe("timPreset", () => {
   });
 
   it("URL lạ (router riêng) thì về Tự nhập, KHÔNG đoán bừa mục gần giống", () => {
-    assert.equal(timPreset("https://9router.example.io.vn/v1"), TU_NHAP);
+    assert.equal(timPreset("https://google-api.example.io.vn/v1"), TU_NHAP);
     // Tiền tố trùng nhưng không phải cùng một endpoint
     assert.equal(timPreset("https://api.deepseek.com/beta"), TU_NHAP);
   });

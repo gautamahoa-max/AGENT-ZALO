@@ -208,6 +208,8 @@ describe("tool-registry", () => {
     "create_excel_file",
     "create_image",
     "tag_member",
+    "notify_vip_lead",
+    "export_mortgage_plan",
   ];
 
   it("isolated:true (lượt theo lịch) loại đủ 9 tool kể cả khi hạ tầng/cấu hình đã sẵn sàng", () => {
@@ -242,7 +244,7 @@ describe("tool-registry", () => {
     imageStore.clearImageSettings();
   });
 
-  it("runsInScheduledTurn khai đúng false cho đúng 9 tool, còn lại mặc định undefined (coi như true)", () => {
+  it("runsInScheduledTurn khai đúng false cho đúng 11 tool, còn lại mặc định undefined (coi như true)", () => {
     const bịLoại = registry.TOOL_DEFINITIONS.filter((t) => t.runsInScheduledTurn === false).map((t) => t.key);
     assert.deepEqual(bịLoại.sort(), [...TOOL_LOAI_KHOI_LICH].sort());
   });

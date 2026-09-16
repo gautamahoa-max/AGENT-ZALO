@@ -198,3 +198,11 @@ export function backfillThreadsFromMessages(): number {
     .run();
   return Number(result.changes);
 }
+
+const deleteThreadStmt = db.prepare("DELETE FROM threads WHERE account_id = ? AND thread_id = ?");
+
+/** Xóa hoàn toàn 1 cuộc trò chuyện khỏi bảng threads */
+export function deleteThread(accountId: string, threadId: string): boolean {
+  const result = deleteThreadStmt.run(accountId, threadId);
+  return Number(result.changes) > 0;
+}

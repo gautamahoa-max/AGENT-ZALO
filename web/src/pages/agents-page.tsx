@@ -93,8 +93,8 @@ export function AgentsPage() {
     <div>
       <PageHeader
         icon={IconBot}
-        title="Agents"
-        subtitle="Mỗi agent là một bộ não: persona + model riêng, gắn vào tài khoản Zalo ở trang Accounts"
+        title="Trợ lý AI"
+        subtitle="Mỗi trợ lý là một bộ não riêng: Persona + Model + Công cụ, gắn vào tài khoản Zalo"
         aside={
           <button
             onClick={() => setCreating(true)}

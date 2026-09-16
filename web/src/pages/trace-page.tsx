@@ -98,8 +98,8 @@ export function TracePage() {
     <>
       <PageHeader
         icon={IconCpu}
-        title="Trace agent"
-        subtitle="Mỗi lượt bot trả lời đã chạy qua những step nào: model nói gì, gọi tool nào với tham số gì"
+        title="Lịch sử suy nghĩ"
+        subtitle="Theo dõi chi tiết các bước xử lý, gọi công cụ và mức tiêu thụ Token của Agent qua từng lượt chat"
       />
 
       {loi && (

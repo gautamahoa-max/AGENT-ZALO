@@ -39,7 +39,7 @@ export const ROUTER_PROVIDER_OPTIONS_KEY = "llmRouter";
 
 /**
  * providerOptions cho generateText theo provider + mức effort.
- * - openai-compatible: `reasoning_effort` chuẩn OpenAI - 9Router truyền tiếp
+ * - openai-compatible: `reasoning_effort` chuẩn OpenAI - Google API truyền tiếp
  *   cho upstream (Anthropic/OpenAI đều hiểu qua translation của router)
  * - anthropic trực tiếp: adaptive thinking + effort (Claude 4.6+/5); model cũ
  *   không nhận "xhigh" thì hạ mức trong env

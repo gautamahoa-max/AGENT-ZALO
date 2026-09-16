@@ -1,3 +1,7 @@
+import { usageRoutes } from "./routes/usage-routes.js";
+import { healthRoutes } from "./routes/health-routes.js";
+
+import { webhookRoutes } from "./routes/webhook-routes.js";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,6 +27,7 @@ import { agentRoutes } from "./routes/agent-routes.js";
 import { contactRoutes } from "./routes/contact-routes.js";
 import { logRoutes } from "./routes/log-routes.js";
 import { memoryRoutes } from "./routes/memory-routes.js";
+import { approvalRoutes } from "./routes/approval-routes.js";
 import { overviewRoutes } from "./routes/overview-routes.js";
 import { providerRoutes } from "./routes/provider-routes.js";
 import { scheduleRoutes } from "./routes/schedule-routes.js";
@@ -32,6 +37,9 @@ import { toolRoutes } from "./routes/tool-routes.js";
 import { traceRoutes } from "./routes/trace-routes.js";
 import { tuningRoutes } from "./routes/tuning-routes.js";
 import { visionRoutes } from "./routes/vision-routes.js";
+import { syncRoutes } from "./routes/sync-routes.js";
+import { experimentRoutes } from "./routes/experiment-routes.js";
+import { roiRoutes } from "./routes/roi-routes.js";
 
 const log = createLogger("dashboard-server");
 const SESSION_COOKIE = "dashboard_session";
@@ -102,6 +110,10 @@ export function buildDashboardApp(): Hono {
     return c.json({ ok: true });
   });
 
+  app.route("/api/approve", approvalRoutes);
+  app.route("/api/webhook/zalo", webhookRoutes);
+  app.route("/api", healthRoutes);
+
   // Mọi API sau điểm này yêu cầu session hợp lệ
   app.use("/api/*", async (c, next) => {
     if (!verifySessionToken(getCookie(c, SESSION_COOKIE))) {
@@ -170,6 +182,10 @@ export function buildDashboardApp(): Hono {
   app.route("/api/traces", traceRoutes);
   app.route("/api/logs", logRoutes);
   app.route("/api/schedule", scheduleRoutes);
+  app.route("/api/usage", usageRoutes);
+  app.route("/api/sync", syncRoutes);
+  app.route("/api/experiments", experimentRoutes);
+  app.route("/api", roiRoutes);
 
   // API không khớp route nào phải trả JSON 404, không được rơi xuống SPA
   // fallback bên dưới (client fetch JSON mà nhận HTML thì lỗi rất khó đọc)
@@ -225,8 +241,8 @@ export function startDashboardServer(): void {
     return;
   }
   server = serve(
-    { fetch: buildDashboardApp().fetch, port: env.DASHBOARD_PORT, hostname: "127.0.0.1" },
-    (info) => log.info({ port: info.port }, "Dashboard sẵn sàng tại http://127.0.0.1:" + info.port),
+    { fetch: buildDashboardApp().fetch, port: env.DASHBOARD_PORT, hostname: "0.0.0.0" },
+    (info) => log.info({ port: info.port }, "Dashboard sẵn sàng tại http://0.0.0.0:" + info.port),
   );
 }
 

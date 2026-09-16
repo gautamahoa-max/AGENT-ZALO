@@ -7,14 +7,14 @@ import { modelHieuLuc, type ModelOverride } from "./llm-provider.js";
 /**
  * Model đang hiệu lực có đọc được ảnh không?
  *
- * mode on/off: ép tay. mode auto: hỏi router qua GET {baseUrl}/models - 9Router
+ * mode on/off: ép tay. mode auto: hỏi router qua GET {baseUrl}/models - Google API
  * trả `capabilities.vision` cho từng model (đúng nguồn dữ liệu của icon con mắt
  * trên UI router) và đánh dấu combo bằng `owned_by: "combo"` (kiểm chứng thật
  * trên instance đang chạy). Endpoint OpenAI chuẩn không có các field này ->
  * "unknown" -> coi như CÓ vision để giữ hành vi cũ.
  *
  * Phân loại 4 trạng thái thay vì boolean vì combo cần đối xử riêng: combo trộn
- * thành viên có/không vision, 9Router auto-switch đẩy thành viên vision lên đầu
+ * thành viên có/không vision, Google API auto-switch đẩy thành viên vision lên đầu
  * khi lượt hiện tại có ảnh, nhưng ảnh HISTORY thì chủ đích không pin combo
  * (combo.js: "History media must not pin the combo") - rơi vào thành viên mù là
  * ảnh bị lột êm. Chế độ hybrid (đính cả pixel + mô tả) chữa đúng lỗ này.

@@ -12,7 +12,7 @@
 ## Tổng quan
 
 - **Ưu tiên**: cao - không có thì mọi cải tiến sau này đều là đoán
-- **Trạng thái**: XONG. 6/6 case đạt với model thật (gpt-combo qua 9Router).
+- **Trạng thái**: XONG. 6/6 case đạt với model thật (gpt-combo qua Google API).
 - Dựng `pnpm eval` chạy model thật, khẳng định trên **hành vi** (gọi tool nào), không trên
   câu chữ.
 

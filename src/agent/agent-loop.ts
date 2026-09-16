@@ -6,6 +6,10 @@ import { isSidecarConfigured } from "../config/runtime-vision-settings.js";
 import { getRecentMessages } from "../conversation/history-store.js";
 import { getMemoriesForContext } from "../conversation/memory-store.js";
 import { getThreadContextEpoch, getThreadSummary } from "../conversation/thread-store.js";
+import {
+  assignVariantForThread,
+  getActiveExperimentForAgent,
+} from "../conversation/experiment-store.js";
 import { createLogger } from "../shared/logger.js";
 import { TECHNICAL_ERROR_REPLY } from "../zalo/send-reply-in-parts.js";
 import type { ParsedMessage } from "../zalo/zalo-message-parser.js";
@@ -15,6 +19,7 @@ import { resolveLanguageModel, resolveReasoningEffort, resolveReasoningOptions }
 import { markModelNoVision } from "./model-vision-detection.js";
 import { buildSystemPrompt } from "./persona-prompt.js";
 import { buildAgentTools, TOOL_DEFINITIONS } from "./tools/index.js";
+import { pruneToolsForTurn } from "./dynamic-tool-pruner.js";
 import { forLog, taoQuanSatStep } from "./agent-step-observer.js";
 import { nguongTheoTranStep, ToolLoopGuard } from "./tool-loop-guard.js";
 import { hasImageParts, isImageRejectionError } from "./vision-rejection-fallback.js";
@@ -132,7 +137,14 @@ export type AgentTurnParams = {
 
 export type AgentTurnResult = {
   text: string;
-  usage: { inputTokens: number; outputTokens: number; totalTokens: number; steps: number };
+  usage: {
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    steps: number;
+    experimentId?: string | null;
+    experimentVariant?: string | null;
+  };
 };
 
 /**
@@ -142,6 +154,48 @@ export type AgentTurnResult = {
  * History được đọc TRƯỚC khi ghi batch hiện tại vào DB, nếu không tin nhắn mới
  * sẽ xuất hiện 2 lần trong input của model.
  */
+
+
+/**
+ * Trích xuất Zalo Reply từ khối JSON nếu model trả về JSON.
+ * Trả về raw text nếu không thể phân tích cú pháp hoặc không tìm thấy khối JSON.
+ */
+function extractZaloReply(text: string): string {
+  if (!text) return text;
+  
+  // Thử tìm khối JSON
+  const jsonMatch = text.match(/```json\s*(\{[\s\S]*?\})\s*```/);
+  const rawMatch = text.match(/\{[\s\S]*?\}/);
+  
+  let jsonString = "";
+  if (jsonMatch) {
+    jsonString = jsonMatch[1];
+  } else if (rawMatch) {
+    jsonString = rawMatch[0];
+  } else {
+    return text; // Không có JSON
+  }
+  
+  try {
+    const parsed = JSON.parse(jsonString);
+    if (parsed.zalo_reply !== undefined && typeof parsed.zalo_reply === "string") {
+      return parsed.zalo_reply.trim();
+    }
+  } catch (e) {
+    // Nếu lỗi cú pháp (do thiếu escape quote/newline), thử regex thô
+    try {
+        const regex = /"zalo_reply"\s*:\s*"([\s\S]*?)"\s*\}/;
+        const fallbackMatch = jsonString.match(regex);
+        if (fallbackMatch) {
+            return fallbackMatch[1].replace(/\\n/g, "\n").trim();
+        }
+    } catch(e2) {
+    }
+  }
+  
+  return text; // Fallback
+}
+
 export async function runAgentTurn({
   api,
   account,
@@ -161,7 +215,36 @@ export async function runAgentTurn({
   const contextEpoch = getThreadContextEpoch(account.id, latest.threadId);
 
   // Não của account: persona + model/maxSteps override (fallback cấu hình chung)
-  const agent = getAgentForAccount(account.agentId);
+  let agent = getAgentForAccount(account.agentId);
+
+  // A/B Testing: Kiểm tra thử nghiệm persona đang chạy cho agent này
+  let experimentId: string | null = null;
+  let experimentVariant: "A" | "B" | null = null;
+  if (!isolated) {
+    try {
+      const activeExp = getActiveExperimentForAgent(account.agentId);
+      if (activeExp) {
+        experimentId = activeExp.id;
+        experimentVariant = assignVariantForThread(
+          activeExp.id,
+          latest.threadId,
+          activeExp.trafficRatio,
+        );
+        const chosenPersona =
+          experimentVariant === "B" ? activeExp.variantBPersona : activeExp.variantAPersona;
+        agent = {
+          ...agent,
+          persona: chosenPersona,
+        };
+        log.info(
+          { experimentId, experimentVariant, threadId: latest.threadId },
+          "Áp dụng persona theo thử nghiệm A/B",
+        );
+      }
+    } catch (err) {
+      log.error({ err }, "Lỗi khi phân bổ thử nghiệm A/B");
+    }
+  }
 
   // Phiên cô lập: KHÔNG gọi getRecentMessages/getMemoriesForContext/getThreadSummary
   // (không chỉ bỏ qua kết quả) - job lịch hẹn không được đọc hội thoại đang có
@@ -307,7 +390,7 @@ export async function runAgentTurn({
       : [...goc, await dungTinChenTrongNganSach(tinChenDaKeo, imageMode, tranToken)];
 
   // `streamText` chứ không phải `generateText`: request non-stream buộc router
-  // gom trọn câu trả lời rồi mới gửi byte đầu, mà Cloudflare trước 9Router cắt
+  // gom trọn câu trả lời rồi mới gửi byte đầu, mà Cloudflare trước Google API cắt
   // bằng 524 khi byte đầu chưa tới trong 100 giây - mọi lượt sinh dài đều chết.
   // Xem `stream-text-result.ts` để biết số đo. Bot vẫn KHÔNG stream chữ xuống
   // Zalo: `gomKetQuaStream` đọc hết stream rồi trả về đúng hình dạng cũ, nên
@@ -330,8 +413,12 @@ export async function runAgentTurn({
           // Hai lớp lọc tool giao nhau: agent khai năng lực, account áp chính sách.
           // Thêm `isolated` lọc bớt tool không hợp với lượt theo lịch (add_reaction
           // không có msgId thật, read_image không có ảnh, save_memory chặn injection
-          // từ job) - xem runsInScheduledTurn ở tool-registry.ts
-          tools: buildAgentTools({ api, account, agent, message: latest, batch, isolated, ghiNhanDaGui }),
+          // từ job) - xem runsInScheduledTurn ở tool-registry.ts.
+          // Sau đó áp dụng Dynamic Tool Pruning theo kênh (1-1 vs Nhóm) và theo intent.
+          tools: pruneToolsForTurn(
+            buildAgentTools({ api, account, agent, message: latest, batch, isolated, ghiNhanDaGui }),
+            { isGroup: latest.isGroup, batch },
+          ).prunedTools,
           // Hai điều kiện dừng. `stepCountIs` chặn số VÒNG; điều kiện token chặn
           // KÍCH THƯỚC - kết quả tool cộng dồn qua từng step (web_fetch một mình đã
           // tới WEB_FETCH_MAX_CHARS ký tự), nên một lượt ít step vẫn phình được.
@@ -554,9 +641,9 @@ export async function runAgentTurn({
     result = await runOnce();
   } catch (err) {
     // Reactive fallback: lượt đang đính pixel mà provider từ chối bằng 4xx
-    // (endpoint ngoài 9Router không khai capability, detect đoán lạc quan) ->
+    // (endpoint ngoài Google API không khai capability, detect đoán lạc quan) ->
     // ghi nhớ model mù + dựng lại input không pixel rồi thử lại 1 lần.
-    // Combo qua 9Router không rơi vào đây - router lột ảnh êm, không lỗi.
+    // Combo qua Google API không rơi vào đây - router lột ảnh êm, không lỗi.
     const pixelModes: ImageContextMode[] = ["native", "hybrid"];
     if (!pixelModes.includes(imageMode) || !hasImageParts(messages) || !isImageRejectionError(err)) {
       // KHÔNG phải lỗi ảnh: phân loại rồi chữa đúng bệnh. Nhánh này phải nằm
@@ -569,7 +656,7 @@ export async function runAgentTurn({
     }
   }
 
-  // 9Router thỉnh thoảng trả 200 + completion rỗng (0 token). maxRetries của
+  // Google API thỉnh thoảng trả 200 + completion rỗng (0 token). maxRetries của
   // SDK không retry vì response "thành công" - phải tự thử lại 1 lần.
   if (isGlitch(result)) {
     log.warn("Router trả completion rỗng (0 token) - thử lại 1 lần");
@@ -602,12 +689,12 @@ export async function runAgentTurn({
       model: result.response.modelId,
       reasoningEffort: resolveReasoningEffort(agent),
       // > 0 là bằng chứng CHẮC CHẮN cache đang trúng. Bằng 0 thì KHÔNG kết luận
-      // được gì: đọc source 9Router (`translator/response/openai-responses.js`)
+      // được gì: đọc source Google API (`translator/response/openai-responses.js`)
       // thì nó CÓ đọc `input_tokens_details.cached_tokens` và truyền vào
       // `buildUsage`, nhưng `buildUsage` (`translator/concerns/usage.js`) chỉ
       // thêm `prompt_tokens_details` khi giá trị > 0 - nên "upstream báo 0 lần
       // trúng" và "upstream không báo trường này" về tới client giống hệt nhau.
-      // Muốn biết thật thì soi CACHED TOKENS trên dashboard 9Router.
+      // Muốn biết thật thì soi CACHED TOKENS trên dashboard Google API.
       cachedTokens: result.totalUsage.inputTokenDetails?.cacheReadTokens ?? 0,
       toolCalls: result.steps.flatMap((step) => step.toolCalls.map((call) => call.toolName)),
       usage: result.totalUsage,
@@ -627,7 +714,7 @@ export async function runAgentTurn({
   // Lượt "chỉ thả reaction" hợp lệ không dính nhánh này (có tool call + token).
   if (isGlitch(result)) {
     log.error(
-      "Router trả completion rỗng 2 lần liên tiếp - trả lời fallback. Cần soi log 9Router.",
+      "Router trả completion rỗng 2 lần liên tiếp - trả lời fallback. Cần soi log Google API.",
     );
     return {
       text: ROUTER_DOWN_REPLY,
@@ -675,23 +762,27 @@ export async function runAgentTurn({
       return null;
     });
     return {
-      text: chot?.trim() || STEP_LIMIT_REPLY,
+      text: extractZaloReply(chot?.trim() || STEP_LIMIT_REPLY),
       usage: {
         inputTokens: result.totalUsage.inputTokens ?? 0,
         outputTokens: result.totalUsage.outputTokens ?? 0,
         totalTokens: result.totalUsage.totalTokens ?? 0,
         steps: result.steps.length,
+        experimentId,
+        experimentVariant,
       },
     };
   }
 
   return {
-    text: result.text.trim(),
+    text: extractZaloReply(result.text.trim()),
     usage: {
       inputTokens: result.totalUsage.inputTokens ?? 0,
       outputTokens: result.totalUsage.outputTokens ?? 0,
       totalTokens: result.totalUsage.totalTokens ?? 0,
       steps: result.steps.length,
+      experimentId,
+      experimentVariant,
     },
   };
 }

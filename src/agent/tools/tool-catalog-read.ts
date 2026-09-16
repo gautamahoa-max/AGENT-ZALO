@@ -1,3 +1,4 @@
+import { createQueryNotebookLMTool } from "./query-notebooklm-tool.js";
 import { isSidecarConfigured } from "../../config/runtime-vision-settings.js";
 import { createGetDatetimeTool } from "./get-datetime-tool.js";
 import { createGetGroupInfoTool } from "./get-group-info-tool.js";
@@ -5,6 +6,11 @@ import { createReadImageTool } from "./read-image-tool.js";
 import type { ToolDefinition } from "./tool-catalog-types.js";
 import { createWebFetchTool } from "./web-fetch-tool.js";
 import { createWebSearchTool } from "./web-search-tool.js";
+import { createEvaluateLoanEligibilityTool } from "./evaluate-loan-eligibility-tool.js";
+import { createRecommendCreditCardTool } from "./recommend-credit-card-tool.js";
+import { createCalculatePropertyFeesTool } from "./calculate-property-fees-tool.js";
+import { queryKnowledgeGraphTool } from "./query-knowledge-graph-tool.js";
+import { createSimulateDebtRefinanceTool } from "./simulate-debt-refinance-tool.js";
 
 /**
  * Nhóm "read" của catalog tool - tra cứu, không tác động ra ngoài. Tách khỏi
@@ -60,4 +66,47 @@ export const READ_TOOL_DEFINITIONS: ToolDefinition[] = [
     group: "read",
     build: (ctx) => createGetGroupInfoTool(ctx),
   },
+  {
+    key: "query_notebooklm",
+    label: "Tra cứu NotebookLM",
+    description: "Hỏi kho kiến thức NotebookLM",
+    group: "read",
+    build: () => createQueryNotebookLMTool(),
+  },
+  {
+    key: "evaluate_loan_eligibility",
+    label: "Thẩm định hạn mức vay & DTI",
+    description: "Thẩm định điều kiện vay theo trần LTV tài sản và DTI < 80% thu nhập",
+    group: "read",
+    build: () => createEvaluateLoanEligibilityTool(),
+  },
+  {
+    key: "recommend_credit_card",
+    label: "Tư vấn thẻ tín dụng OCB",
+    description: "Gợi ý dòng thẻ tín dụng OCB theo thói quen chi tiêu (online, ăn uống, làm đẹp, du lịch)",
+    group: "read",
+    build: () => createRecommendCreditCardTool(),
+  },
+  {
+    key: "calculate_property_fees",
+    label: "Tính thuế phí BĐS",
+    description: "Tính nhanh thuế TNCN 2%, lệ phí trước bạ 0.5%, phí công chứng và sang tên BĐS",
+    group: "read",
+    build: () => createCalculatePropertyFeesTool(),
+  },
+  {
+    key: "query_knowledge_graph",
+    label: "Truy vấn Knowledge Graph",
+    description: "Truy xuất sự thật tuyệt đối (dự án, lãi suất) bằng SQL (không ảo giác)",
+    group: "read",
+    build: () => queryKnowledgeGraphTool,
+  },
+  {
+    key: "simulate_debt_refinance",
+    label: "Mô phỏng Chuyển nợ / Đảo nợ",
+    description: "Tính toán dòng tiền và điểm hòa vốn khi chuyển khoản vay từ ngân hàng khác sang OCB",
+    group: "read",
+    build: (ctx) => createSimulateDebtRefinanceTool(ctx),
+  },
 ];
+

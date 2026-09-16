@@ -1,3 +1,4 @@
+import { transcribeAudio } from "../agent/transcribe-audio.js";
 import type { API } from "zca-js";
 import { getAccount } from "../config/account-store.js";
 import { getTuning } from "../config/runtime-tuning-settings.js";
@@ -11,7 +12,9 @@ import {
   setThreadDisplayName,
 } from "../conversation/thread-store.js";
 import { shouldRespond } from "../middleware/allowlist-filter.js";
-import { enqueueMessage } from "../middleware/message-batcher.js";
+import { cancelPendingMessages, enqueueMessage } from "../middleware/message-batcher.js";
+import { setBotEnabled } from "../conversation/thread-store.js";
+import { isSentByBot } from "./bot-sent-tracker.js";
 import { createLogger } from "../shared/logger.js";
 import { maybeNotifyBusyWait } from "./busy-wait-notice.js";
 import { sendDeliveredReceipt } from "./message-receipts.js";
@@ -25,29 +28,81 @@ const log = createLogger("message-router");
  * Mọi tin đến (kể cả tin sẽ bị lọc): ghi contact + thread ("auto-collected").
  * Đọc config mới nhất từ DB mỗi tin để sửa policies từ dashboard ăn ngay.
  */
-export function routeIncomingMessage(
+export async function routeIncomingMessage(
   accountId: string,
   api: API,
   selfId: string,
   raw: unknown,
-): void {
+): Promise<void> {
   const config = getAccount(accountId);
   if (!config) return;
 
   const msg = parseIncomingMessage(config.id, selfId, raw, getTuning("ZALO_IMAGE_QUALITY"));
 
+  if (msg.audioUrl) {
+    const transcript = await transcribeAudio(msg.audioUrl, api);
+    if (transcript) {
+      msg.text = `[Tin nhắn thoại] Khách nói: "${transcript}"`;
+    }
+  }
+
   // Chạy TRƯỚC mọi nhánh return bên dưới: tin thiếu threadId bị bỏ qua lặng lẽ
   // ở ngay dòng dưới, không cảnh báo ở đây thì không còn chỗ nào biết
   reportPayloadAnomalies(config.id, msg);
+
+  if (msg.isSelf && msg.threadId) {
+    if (isSentByBot(msg)) {
+      return;
+    }
+
+    const typeLower = String(msg.rawData?.msgType ?? "").toLowerCase();
+    const isSticker = typeLower.includes("sticker");
+
+    if (isSticker) {
+      log.info(
+        { accountId: config.id, threadId: msg.threadId, text: msg.text },
+        "Chủ tài khoản đã trực tiếp thả sticker -> Tự động DỪNG Bot ở cuộc hội thoại này.",
+      );
+      setBotEnabled(config.id, msg.threadId, false);
+      const threadKey = `${config.id}:${msg.threadId}`;
+      cancelPendingMessages(threadKey);
+    } else {
+      log.info(
+        { accountId: config.id, threadId: msg.threadId, text: msg.text },
+        "Chủ tài khoản nhắn tin chữ/ảnh -> Chỉ ghi nhận vào lịch sử, KHÔNG dừng bot.",
+      );
+    }
+
+    if (msg.text.trim() || msg.images.length > 0) {
+      appendMessage(config.id, msg.threadId, {
+        role: "assistant",
+        content: describeForHistory(msg),
+      });
+      // Ghi nhận Thread để nó xuất hiện trên Dashboard ngay khi Chủ Zalo nhắn tin mở màn
+      recordThreadActivity({
+        accountId: config.id,
+        threadId: msg.threadId,
+        threadType: msg.threadType,
+        displayName: "",
+        lastSenderName: "Bot (Chủ Zalo)",
+      });
+      if (msg.isGroup && !hasDisplayName(config.id, msg.threadId)) {
+        void resolveGroupName(config.id, api, msg.threadId);
+      } else if (!msg.isGroup && !hasDisplayName(config.id, msg.threadId)) {
+        void resolveUserName(config.id, api, msg.threadId);
+      }
+    }
+    return;
+  }
 
   if (!msg.isSelf && msg.threadId) {
     // "Đã nhận" cho MỌI tin về tới listener, kể cả tin sắp bị lọc - client Zalo
     // thật cũng báo nhận tự động, không phụ thuộc người dùng có đọc hay không
     sendDeliveredReceipt(api, msg);
     const isNewContact = recordContactActivity(config.id, msg.senderId, msg.senderName);
-    if (isNewContact && !msg.isGroup) {
+    if (isNewContact && !msg.isGroup && typeof (api as any).sendFriendRequest === "function") {
       log.info({ userId: msg.senderId }, "Nhắn tin lần đầu, gửi lời mời kết bạn tự động");
-      api.sendFriendRequest("Chào bạn, mình là Hoà OCB - rất hân hạnh được kết nối cùng bạn!", msg.senderId).catch((err: any) => {
+      (api as any).sendFriendRequest("Chào bạn, mình là Hoà OCB - rất hân hạnh được kết nối cùng bạn!", msg.senderId).catch((err: any) => {
         log.warn({ err, userId: msg.senderId }, "Lỗi khi gửi lời mời kết bạn tự động (có thể đã kết bạn rồi)");
       });
     }
@@ -139,5 +194,18 @@ async function resolveGroupName(accountId: string, api: API, threadId: string): 
     if (name) setThreadDisplayName(accountId, threadId, String(name));
   } catch (err) {
     log.debug({ accountId, threadId, err }, "Không lấy được tên nhóm - để trống");
+  }
+}
+
+/** Lấy tên user khi mình nhắn tin trước cho người lạ */
+async function resolveUserName(accountId: string, api: API, threadId: string): Promise<void> {
+  try {
+    /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+    const info: any = await (api as any).getUserInfo(threadId);
+    const profile = info?.changed_profiles?.[threadId] || info?.data;
+    const name = profile?.dName ?? profile?.displayName ?? profile?.zaloName ?? profile?.name;
+    if (name) setThreadDisplayName(accountId, threadId, String(name));
+  } catch (err) {
+    log.debug({ accountId, threadId, err }, "Không lấy được tên người dùng");
   }
 }

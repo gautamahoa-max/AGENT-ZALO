@@ -6,6 +6,8 @@ export type AgentTurnUsage = {
   outputTokens: number;
   totalTokens: number;
   steps: number;
+  experimentId?: string | null;
+  experimentVariant?: string | null;
 };
 
 /** 'message' = trả lời tin nhắn tới; 'schedule' = job lịch hẹn tự chạy (không ai đang chờ) */
@@ -17,7 +19,9 @@ const openStmt = db.prepare(`
 
 const finishStmt = db.prepare(`
   UPDATE agent_turns
-  SET input_tokens = ?, output_tokens = ?, total_tokens = ?, steps = ?
+  SET input_tokens = ?, output_tokens = ?, total_tokens = ?, steps = ?,
+      experiment_id = COALESCE(?, experiment_id),
+      experiment_variant = COALESCE(?, experiment_variant)
   WHERE id = ?
 `);
 
@@ -51,7 +55,15 @@ export function openAgentTurn(
  * Lượt ném lỗi vẫn nên gọi (với số đo được tới lúc hỏng) để row không nằm lại ở 0.
  */
 export function finishAgentTurn(turnId: number, usage: AgentTurnUsage): void {
-  finishStmt.run(usage.inputTokens, usage.outputTokens, usage.totalTokens, usage.steps, turnId);
+  finishStmt.run(
+    usage.inputTokens,
+    usage.outputTokens,
+    usage.totalTokens,
+    usage.steps,
+    usage.experimentId ?? null,
+    usage.experimentVariant ?? null,
+    turnId,
+  );
 }
 
 const threadTotalsStmt = db.prepare(`

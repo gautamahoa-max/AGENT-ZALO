@@ -7,6 +7,7 @@ import { khoiDieuDaNho } from "./memory-prompt-block.js";
 import type { ParsedMessage } from "../zalo/zalo-message-parser.js";
 import { listAvailableTools, type ToolDefinition } from "./tools/tool-registry.js";
 import { toolPersonaSections } from "./persona-tool-rules.js";
+import { readCorePersona, resolveDynamicKBs } from "./dynamic-kb-router.js";
 import {
   THE_NOI_DUNG_NGOAI,
   TIEU_DE_KHA_NANG,
@@ -47,14 +48,32 @@ const KHOI_MAU_CHU = `- Tô màu và gạch chân CHỈ khi người dùng NÓI 
 const BASE_PERSONA = `Bạn là trợ lý AI trả lời tin nhắn trên Zalo bằng tiếng Việt tự nhiên, thân thiện.
 
 Quy tắc trả lời:
+- CHỈ XUẤT LỜI THOẠI TRỰC TIẾP: Toàn bộ phản hồi của bạn sẽ được gửi thẳng tới màn hình Zalo của khách hàng. TUYỆT ĐỐI KHÔNG xuất các câu phân tích đề bài, không viết suy nghĩ nội tâm, không nhắc lại tên quy tắc hay lập dàn ý (như "Cần phản hồi về...", "Áp dụng quy tắc...", "Suy nghĩ:...", "Khách hỏi:..."). Hãy trả lời thẳng bằng câu hội thoại tự nhiên với khách.
 - Được dùng markdown ở mức cơ bản, hệ thống tự đổi thành định dạng thật của Zalo: **in đậm**, "## " đầu dòng cho tiêu đề mục, "- " cho gạch đầu dòng, "1. " cho danh sách có thứ tự.
 - In đậm ĐÚNG CÁI NGƯỜI ĐỌC LƯỚT MẮT TÌM, mỗi dòng một chỗ: mấy chữ đầu của mỗi mục trong danh sách, con số quyết định, câu kết luận, nhãn của dòng ghi nguồn. Bôi đậm cả câu hay bôi mọi con số thì chẳng còn gì nổi bật, mà tin dài lại bị Zalo cắt thành nhiều mẩu vụn.
 - Danh sách các mục ĐỘC LẬP và đáng đếm (khả năng làm được, các bước phải làm, các phương án chọn) thì ĐÁNH SỐ "1. " "2. " và mỗi mục dẫn đầu bằng một emoji hợp nghĩa, rồi in đậm tên mục. Danh sách các ý bổ trợ cho câu ngay trên nó thì dùng gạch đầu dòng "- ", không đánh số.
 - Danh sách quá 6-7 mục thì gom thành vài nhóm, mỗi nhóm một tiêu đề ngắn. Liệt kê phẳng mười mấy dòng thì người ta đọc mệt và không nhớ được gì.
+- QUY TẮC BẮT BUỘC TRÌNH BÀY GẠCH ĐẦU DÒNG (-):
+  + Khi liệt kê bất kỳ danh mục nào (biểu lãi suất, các gói sản phẩm, danh mục hồ sơ, điều kiện...): BẮT BUỘC mỗi ý phải nằm trên MỘT DÒNG RIÊNG BIỆT và bắt đầu bằng dấu gạch ngang (-).
+  + Tuyệt đối KHÔNG ĐƯỢC viết dồn các gạch đầu dòng trên cùng một dòng (như ": - Gói 1... - Gói 2...").
+  + Câu mở đầu dẫn dắt phải xuống dòng trước khi vào gạch đầu dòng đầu tiên.
+  + Câu lưu ý (Lưu ý:...) và câu hỏi gợi mở kết thúc phải xuống dòng riêng biệt, thoáng mắt để khách đọc trên Zalo dễ dàng.
+  Ví dụ chuẩn:
+  Biểu lãi suất mới nhất hiện tại gửi sếp tham khảo ạ:
+  - Max Savings (mở mới 36T): Lãi suất tham khảo lên tới 8.00%/năm (lĩnh lãi định kỳ 6 tháng).
+  - CCTG Flexi Savings: Nắm giữ từ đủ 6 tháng lãi suất tham khảo có thể lên tới 9.00%/năm, nhận lãi đều đặn mùng 1 hàng tháng!
+  (Lưu ý: Lãi suất có thể thay đổi tùy thuộc vào chính sách của OCB từng thời kỳ).
+  Sếp dự tính gửi ngắn hạn hay gửi dài để em lên phương án tư vấn tối ưu nhất cho sếp nhé!
 - Mấy luật trình bày trên đây THẮNG mọi ví dụ cũ trong lịch sử hội thoại. Câu trả lời cũ của chính bạn trình bày kiểu khác thì đó là kiểu đã lỗi thời - làm theo luật, đừng chép lại kiểu cũ cho giống.
 - KHÔNG dùng bảng markdown, gạch dưới "_", hay khối code cho văn xuôi - Zalo không hiển thị đẹp. Cần liệt kê nhiều cột thì tách thành gạch đầu dòng.
 ${KHOI_MAU_CHU}
-- Độ dài theo việc: hỏi đáp thường thì vài câu là đủ; còn tác vụ đối chiếu, dò số, tính toán, báo số liệu thì PHẢI trình bày đầy đủ: dữ liệu đọc được từ người dùng, số liệu nguồn đã tra, đối chiếu từng mục, kết luận rõ từng mục, chốt bằng nguồn + ngày. Người dùng phải tự kiểm lại được mà không cần hỏi thêm.
+- BẮT BUỘC TRẢ VỀ JSON: Mọi phản hồi cuối cùng của bạn gửi cho khách hàng PHẢI nằm trong khối JSON duy nhất có cấu trúc như sau (không xuất thêm bất kỳ văn bản nào ngoài khối JSON này):
+\`\`\`json
+{
+  "suy_nghi_noi_tam": "Không gian riêng để bạn suy nghĩ, nháp tính toán, trích xuất dữ liệu, hoặc lập dàn ý. Khách hàng sẽ KHÔNG THẤY phần này.",
+  "zalo_reply": "Câu thoại trực tiếp với khách. Đây là nội dung DUY NHẤT được gửi đi. Phải tuân thủ tuyệt đối phong cách giao tiếp và độ dài được quy định trong Persona riêng của bạn."
+}
+\`\`\`
 - Biết tên người nhắn thì xưng hô theo tên cho thân tình, đừng gọi "bạn" trống không.
 - Đọc dữ liệu từ ảnh (số chứng từ, mã, biển số...): tách phần CHỮ và phần SỐ đúng như in trên giấy, đừng dán liền nhau; có chỗ in lặp lại thì đối chiếu chéo cho chắc.
 - Việc làm xong mới biết sai thì tốn công làm lại (tạo file, đặt lịch, vẽ ảnh, gửi tin cho người khác): thiếu thông tin thì HỎI LẠI, đừng đoán rồi làm bừa.
@@ -104,29 +123,40 @@ export function buildSystemPrompt(
   account?: Pick<AccountConfig, "disabledTools">,
   isolated?: boolean,
 ): string {
-  // Chỉ ngày + thứ, không có giờ - giờ đổi mỗi phút sẽ vỡ prompt cache mỗi phút.
-  // Không có dòng này model đoán ngày từ training data và trả lời sai.
-  const sections = [BASE_PERSONA, currentDateLine(botTimeZone())];
+  // ── 1. KHỐI TĨNH BẤT BIẾN (STATIC INVARIANT) - TỐI ƯU CONTEXT CACHING ──
+  // Đặt toàn bộ phần cố định ở đầu để Gemini API kích hoạt Implicit Caching
+  const sections: string[] = [BASE_PERSONA];
+
+  const corePersona = readCorePersona();
+  if (corePersona) {
+    sections.push(`Persona riêng của bạn (tên agent: ${agent.name}):\n${corePersona}`);
+  } else if (agent.persona.trim()) {
+    sections.push(`Persona riêng của bạn (tên agent: ${agent.name}):\n${agent.persona.trim()}`);
+  }
 
   if (account) {
-    // Một lần lọc dùng cho CẢ mục "Khả năng" lẫn các khối luật: hai nơi tự lọc
-    // riêng là sớm muộn cũng lệch, mà lệch nghĩa là prompt kể một tool rồi lại
-    // dạy luật của tool khác. `isolated` PHẢI truyền xuống đây - thiếu nó thì
-    // lượt theo lịch (agent-loop.ts truyền isolated:true) vẫn được liệt kê cả
-    // 9 tool bị runsInScheduledTurn:false, trong khi buildAgentTools ĐÃ lọc
-    // chúng khỏi schema thật - model tự nhận "mình vừa ghi nhớ" mà chẳng lưu
-    // gì (đúng bug persona-prompt.test.ts đã dựng bất biến để canh).
-    //
-    // `agent` truyền cả vào đây chứ không chỉ vào buildAgentTools: từ khi agent
-    // có lớp tắt tool riêng, thiếu nó thì mục "Khả năng" kể luôn tool mà chính
-    // agent này đã tắt - đúng lớp bug bất biến kia sinh ra để chặn.
     const available = listAvailableTools({ agent, account }, { isolated });
     sections.push(toolCapabilitySection(available));
     sections.push(...toolPersonaSections(available.map((t) => t.key)));
   }
 
-  if (agent.persona.trim()) {
-    sections.push(`Persona riêng của bạn (tên agent: ${agent.name}):\n${agent.persona.trim()}`);
+  // ── 2. KHỐI ĐỘNG (DYNAMIC SUFFIX) - ĐẶT Ở CUỐI PROMPT ──
+  // Chỉ ngày + thứ, không có giờ - giờ đổi mỗi phút sẽ vỡ prompt cache mỗi phút.
+  sections.push(currentDateLine(botTimeZone()));
+
+  if (corePersona) {
+    // Resolve dynamic KBs based on message content & context
+    const messageTexts = [msg.text || ""];
+    const { contents: dynamicKBContents } = resolveDynamicKBs({
+      latestMessages: messageTexts,
+      threadLabels: [], // Labels will be populated from memory facts context
+      memoryFacts: memory?.facts,
+    });
+    if (dynamicKBContents.length > 0) {
+      sections.push(
+        `Kịch bản nghiệp vụ áp dụng cho lượt này:\n${dynamicKBContents.join("\n\n")}`,
+      );
+    }
   }
 
   if (memory?.threadSummary) {

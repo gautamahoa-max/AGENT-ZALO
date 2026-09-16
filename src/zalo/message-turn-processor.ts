@@ -3,7 +3,7 @@ import { runAgentTurn, type AgentTurnParams } from "../agent/agent-loop.js";
 import { phanLoaiLoiProvider } from "../agent/provider-error-classifier.js";
 import type { StepTrace } from "../agent/agent-step-trace.js";
 import type { AccountConfig } from "../config/account-store.js";
-import { appendMessage } from "../conversation/history-store.js";
+import { appendMessage, countMessages } from "../conversation/history-store.js";
 import { imagePathsOf, persistBatchImages } from "../conversation/media-store.js";
 import { layTinDangDo } from "../middleware/message-batcher.js";
 import { maybeSummarizeThread } from "../conversation/thread-summarizer.js";
@@ -11,6 +11,7 @@ import { saveTurnTrace } from "../agent/agent-trace-store.js";
 import { traceLuotHong } from "../agent/failed-turn-trace.js";
 import { forLog } from "../agent/agent-step-observer.js";
 import { finishAgentTurn, openAgentTurn } from "../conversation/usage-store.js";
+import { canStartTurn, afterTurnCostCheck } from "../conversation/cost-guard.js";
 import { createLogger } from "../shared/logger.js";
 import { runInTurnLogContext } from "../shared/turn-log-context.js";
 import { sendSeenReceipt } from "./message-receipts.js";
@@ -19,6 +20,8 @@ import { deliverChatReply } from "./deliver-chat-reply.js";
 import { notifyTechnicalError, type ReplyTarget } from "./send-reply-in-parts.js";
 import { startTypingIndicator } from "./typing-indicator.js";
 import { describeForHistory, type ParsedMessage } from "./zalo-message-parser.js";
+import { redactPII } from "../shared/pii-redactor.js";
+import { runComplianceGuard } from "../agent/compliance-agent.js";
 
 const log = createLogger("message-turn");
 
@@ -41,16 +44,35 @@ type XuLyLuotOptions = {
  * Không await ở luồng chính và tự nuốt lỗi - reaction hỏng không được làm
  * chậm hay chết đường trả lời.
  */
+const DONG_Y_REGEX = /(^|\s)(ok|oke|oki|okay|được|duoc|đồng ý|dong y|nhất trí|nhat tri|chốt|chot|vâng|vang|dạ vâng|da vang|chuẩn|chuan|hợp lý|hop ly|triển|trien|làm luôn|lam luon|lên hồ sơ|len ho so|duyệt|duyet|cảm ơn|cam on|thanks|thank|tuyệt|tuyet|ừ|uh|u|yes)($|\s|[!.,?])/i;
+
+function laTinDongY(text: string): boolean {
+  return DONG_Y_REGEX.test(text.trim());
+}
+
+/**
+ * Thả reaction có chọn lọc: CHỈ thả tim khi (1) Tin nhắn đầu tiên của cuộc trò chuyện,
+ * hoặc (2) Khách thể hiện sự đồng ý / đồng thuận.
+ */
 function sendAutoReaction(config: AccountConfig, api: API, msg: ParsedMessage): void {
   if (!config.autoReactEnabled || !msg.msgId) return;
+
+  const soTin = countMessages(config.id, msg.threadId);
+  const isFirstMessage = soTin === 0;
+  const isAgreement = laTinDongY(msg.text);
+
+  if (!isFirstMessage && !isAgreement) {
+    return;
+  }
+
   void api
-    .addReaction(toZaloReaction(config.autoReactIcon), {
+    .addReaction(toZaloReaction(config.autoReactIcon || "heart"), {
       data: { msgId: msg.msgId, cliMsgId: msg.cliMsgId },
       threadId: msg.threadId,
       type: msg.threadType,
     })
     .catch((err) =>
-      log.debug({ err }, "Auto-react thất bại"),
+      log.debug({ err }, "Thả reaction chọn lọc thất bại"),
     );
 }
 
@@ -73,6 +95,13 @@ export async function processBatch(
    */
   options: XuLyLuotOptions = {},
 ): Promise<void> {
+  // ĐỀ XUẤT 1: PII Redaction - Che mờ dữ liệu cá nhân trước khi xử lý
+  for (const msg of batch) {
+    if (msg.text) {
+      msg.text = redactPII(msg.text);
+    }
+  }
+  
   const latest = batch[batch.length - 1]!;
   const turnId = openAgentTurn(config.id, latest.threadId);
   return runInTurnLogContext({ accountId: config.id, threadId: latest.threadId, turnId }, () =>
@@ -115,6 +144,9 @@ async function xuLyLuot(
   // khiến người nhắn tưởng bot đang soạn trả lời.
   sendSeenReceipt(api, batch);
   sendAutoReaction(config, api, latest);
+  // Tự động bắn email thông báo về Gmail cho Hoà bất cứ khi nào có tin nhắn Zalo mới
+  // Đã TẮT tính năng này theo yêu cầu của Hoà để tránh spam. Giờ chỉ gửi mail qua tool notify_vip_lead.
+  // void notifyIncomingZaloMessage(batch);
 
   // Giữ "đang nhập" xuyên suốt: qua cả lượt LLM lẫn delay của rate-limiter,
   // dừng trong finally kể cả khi agent ném lỗi
@@ -144,6 +176,14 @@ async function xuLyLuot(
   const layTinChen = async (): Promise<ParsedMessage[]> => {
     const moi = layTinDangDo(threadKey);
     if (moi.length === 0) return moi;
+    
+    // ĐỀ XUẤT 1: PII Redaction cho tin chen ngang
+    for (const msg of moi) {
+      if (msg.text) {
+        msg.text = redactPII(msg.text);
+      }
+    }
+    
     tinChen.push(...moi);
     // Đối xử y hệt tin mở đầu lượt: người gửi phải thấy bot đã nhận, không thì
     // họ tưởng tin rơi vào khoảng không và gửi lại.
@@ -199,6 +239,23 @@ async function xuLyLuot(
     // và các lượt sau nạp lại được ảnh này từ history
     await luuAnh(config.id, batch);
 
+    // ── Cost Guard: chặn lượt nếu vượt trần token ──
+    const costCheck = canStartTurn();
+    if (!costCheck.allowed) {
+      log.warn({ reason: costCheck.reason }, "Cost Guard chặn lượt");
+      try {
+        await api.sendMessage(
+          "Dạ mà xíu em liên hệ lại nhen. Giờ em có cuộc họp đột xuất nên mình thông cảm giúp em nha. Họp xong em alo lại liền ạ",
+          latest.threadId,
+          latest.threadType,
+        );
+      } catch { /* bỏ qua nếu gửi thất bại */ }
+      finishAgentTurn(turnId, { inputTokens: 0, outputTokens: 0, totalTokens: 0, steps: 0 });
+      turnFinished = true;
+      writeBatchToHistory();
+      return;
+    }
+
     // Chạy agent TRƯỚC khi ghi history: runAgentTurn tự đọc history cũ và tự
     // ghép batch hiện tại vào input - ghi trước sẽ khiến tin mới lặp 2 lần.
     const result = await runAgentTurn({
@@ -211,6 +268,7 @@ async function xuLyLuot(
       ghiNhanDaGui,
     });
     finishAgentTurn(turnId, result.usage);
+    afterTurnCostCheck(result.usage.totalTokens);
     // Từ đây trở đi lượt đã CHỐT SỔ THẬT. Nhánh catch bên dưới không được chốt
     // lại nữa - xem giải thích ở đó.
     turnFinished = true;
@@ -229,7 +287,11 @@ async function xuLyLuot(
     // đặt ở tầng caller chứ không trong `sendReplyInParts`: hàm đó còn phục vụ
     // scheduler, mà lượt theo lịch có luật `[SILENT]` riêng - lọc chung sẽ phá
     // logic đó.
-    const giao = await deliverChatReply(replyTarget, config.id, latest.threadId, result.text);
+    // ĐỀ XUẤT 1: MULTI-AGENT - Lớp kiểm duyệt Compliance Agent
+    const complianceResult = await runComplianceGuard(result.text);
+    const finalText = complianceResult.rewrittenText;
+
+    const giao = await deliverChatReply(replyTarget, config.id, latest.threadId, finalText);
     if (giao.hong) return;
 
     // Memory lớp 2: gộp tin cũ vào summary - fire-and-forget sau khi đã trả lời,

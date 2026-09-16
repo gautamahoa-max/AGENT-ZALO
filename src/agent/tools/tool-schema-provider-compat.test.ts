@@ -13,7 +13,7 @@ import { cleanupTestEnv, setupTestEnv } from "../../shared/test-env-setup.js";
  * Đã trả giá thật 06/08/2026: `z.tuple()` trong `create_excel_file` dịch ra JSON
  * Schema draft-07 với `items` là MẢNG. Lớp OpenAI-compatible của Google chỉ nhận
  * 2020-12 (ở đó `items` phải là object hoặc boolean) nên trả 400 cho mọi tin
- * nhắn. 9router và Anthropic đều nuốt dạng cũ, nên lỗi nằm im tới lúc đổi nhà
+ * nhắn. google-api và Anthropic đều nuốt dạng cũ, nên lỗi nằm im tới lúc đổi nhà
  * cung cấp - đúng loại bẫy mà test phải bắt thay vì đợi người dùng phát hiện.
  *
  * Test này quét CẤU TRÚC, không phải một tool cụ thể: ai đó thêm `z.tuple()` vào

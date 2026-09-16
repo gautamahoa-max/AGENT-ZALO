@@ -75,7 +75,7 @@ const goiTool = () => ({
   warnings: [],
 });
 
-/** Chữ ký glitch của 9Router: HTTP 200 nhưng rỗng trơn, 0 token */
+/** Chữ ký glitch của Google API: HTTP 200 nhưng rỗng trơn, 0 token */
 const rong = () => traLoi("", KHONG_TOKEN);
 
 const account: AccountConfig = {

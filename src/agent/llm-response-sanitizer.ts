@@ -1,5 +1,5 @@
 /**
- * Phòng thủ trước response lỗi từ router proxy (9Router): có ca router trả lời
+ * Phòng thủ trước response lỗi từ router proxy (Google API): có ca router trả lời
  * request NON-streaming bằng body là JSON hoàn chỉnh nhưng dính thêm đuôi SSE
  * `data: [DONE]` (và header content-type: text/event-stream). AI SDK parse JSON
  * sẽ fail ở ký tự đầu tiên sau dấu `}` đóng - toàn bộ lượt agent chết dù câu

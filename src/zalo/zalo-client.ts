@@ -23,7 +23,7 @@ function createZaloInstance(): Zalo {
   return new Zalo({
     checkUpdate: false,
     logging: false,
-    selfListen: false,
+    selfListen: true,
     imageMetadataGetter,
   });
 }
