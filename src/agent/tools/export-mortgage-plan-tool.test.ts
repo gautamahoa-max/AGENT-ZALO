@@ -1,6 +1,4 @@
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import path from "node:path";
 import { after, before, describe, it } from "node:test";
 import { ThreadType, type API } from "zca-js";
 import { cleanupTestEnv, setupTestEnv } from "../../shared/test-env-setup.js";
@@ -13,24 +11,6 @@ let exportToolModule: typeof import("./export-mortgage-plan-tool.js");
 
 before(async () => {
   dataDir = setupTestEnv();
-  // copy all 4 templates to test dataDir/templates
-  fs.mkdirSync(path.join(dataDir, "templates"), { recursive: true });
-  fs.copyFileSync(
-    path.resolve("data/templates/Bang_Tinh_Lai_The_Prive.xlsx"),
-    path.join(dataDir, "templates", "Bang_Tinh_Lai_The_Prive.xlsx"),
-  );
-  fs.copyFileSync(
-    path.resolve("data/templates/Bang_Tinh_Lai_Palm_River.xlsx"),
-    path.join(dataDir, "templates", "Bang_Tinh_Lai_Palm_River.xlsx"),
-  );
-  fs.copyFileSync(
-    path.resolve("data/templates/Bang_Tinh_Lai_Gladia.xlsx"),
-    path.join(dataDir, "templates", "Bang_Tinh_Lai_Gladia.xlsx"),
-  );
-  fs.copyFileSync(
-    path.resolve("data/templates/Bang_Tinh_Lai_Bcons.xlsx"),
-    path.join(dataDir, "templates", "Bang_Tinh_Lai_Bcons.xlsx"),
-  );
   exportToolModule = await import("./export-mortgage-plan-tool.js");
 });
 

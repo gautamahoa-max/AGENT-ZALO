@@ -6,10 +6,20 @@ export type ThreadRow = {
   threadType: number;
   displayName: string;
   botEnabled: boolean;
+  conversationState: ConversationState;
+  handoffReason: string;
+  handoffSummary: string;
+  handoffAt: string | null;
   messageCount: number;
   lastMessageAt: string | null;
   lastSenderName: string | null;
 };
+
+export type ConversationState =
+  | "bot_active"
+  | "waiting_owner"
+  | "human_owned"
+  | "bot_resumable";
 
 const upsertStmt = db.prepare(`
   INSERT INTO threads (account_id, thread_id, thread_type, display_name, message_count,
@@ -70,12 +80,101 @@ export function hasDisplayName(accountId: string, threadId: string): boolean {
 }
 
 const setEnabledStmt = db.prepare(
-  "UPDATE threads SET bot_enabled = ? WHERE account_id = ? AND thread_id = ?",
+  `UPDATE threads
+   SET bot_enabled = ?,
+       conversation_state = ?,
+       handoff_reason = CASE WHEN ? = 1 THEN '' ELSE handoff_reason END,
+       handoff_summary = CASE WHEN ? = 1 THEN '' ELSE handoff_summary END,
+       handoff_at = CASE WHEN ? = 1 THEN NULL ELSE handoff_at END
+   WHERE account_id = ? AND thread_id = ?`,
 );
 
 export function setBotEnabled(accountId: string, threadId: string, enabled: boolean): boolean {
-  const result = setEnabledStmt.run(enabled ? 1 : 0, accountId, threadId);
+  const value = enabled ? 1 : 0;
+  const result = setEnabledStmt.run(
+    value,
+    enabled ? "bot_active" : "human_owned",
+    value,
+    value,
+    value,
+    accountId,
+    threadId,
+  );
   return result.changes > 0;
+}
+
+const handoffStmt = db.prepare(`
+  INSERT INTO threads (
+    account_id, thread_id, thread_type, display_name, bot_enabled,
+    conversation_state, handoff_reason, handoff_summary, handoff_at,
+    message_count, last_message_at, last_sender_name
+  ) VALUES (?, ?, ?, ?, 0, 'human_owned', ?, ?,
+            strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 0,
+            strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), ?)
+  ON CONFLICT (account_id, thread_id) DO UPDATE SET
+    bot_enabled = 0,
+    conversation_state = 'human_owned',
+    handoff_reason = excluded.handoff_reason,
+    handoff_summary = excluded.handoff_summary,
+    handoff_at = excluded.handoff_at
+  WHERE threads.conversation_state != 'human_owned'
+`);
+
+/**
+ * Trao quyền hội thoại cho người thật. Câu lệnh idempotent: nếu thread đã do
+ * người thật sở hữu thì `changed=false`, caller không tạo lead/gửi email lần 2.
+ */
+export function handoffThread(input: {
+  accountId: string;
+  threadId: string;
+  threadType: number;
+  displayName?: string;
+  lastSenderName?: string;
+  reason: string;
+  summary: string;
+}): { changed: boolean; state: "human_owned" } {
+  const result = handoffStmt.run(
+    input.accountId,
+    input.threadId,
+    input.threadType,
+    input.displayName ?? "",
+    input.reason,
+    input.summary,
+    input.lastSenderName ?? input.displayName ?? "",
+  );
+  return { changed: Number(result.changes) > 0, state: "human_owned" };
+}
+
+const getConversationStateStmt = db.prepare(`
+  SELECT conversation_state, handoff_reason, handoff_summary, handoff_at
+  FROM threads WHERE account_id = ? AND thread_id = ?
+`);
+
+export function getConversationState(
+  accountId: string,
+  threadId: string,
+): {
+  state: ConversationState;
+  reason: string;
+  summary: string;
+  handoffAt: string | null;
+} | null {
+  const row = getConversationStateStmt.get(accountId, threadId) as
+    | {
+        conversation_state: ConversationState;
+        handoff_reason: string;
+        handoff_summary: string;
+        handoff_at: string | null;
+      }
+    | undefined;
+  return row
+    ? {
+        state: row.conversation_state,
+        reason: row.handoff_reason,
+        summary: row.handoff_summary,
+        handoffAt: row.handoff_at,
+      }
+    : null;
 }
 
 const setNameStmt = db.prepare(
@@ -133,6 +232,7 @@ export function getThreadContextEpoch(accountId: string, threadId: string): numb
 
 const listStmt = db.prepare(`
   SELECT account_id, thread_id, thread_type, display_name, bot_enabled,
+         conversation_state, handoff_reason, handoff_summary, handoff_at,
          message_count, last_message_at, last_sender_name
   FROM threads
   WHERE (? = '' OR account_id = ?) AND (display_name LIKE ? OR thread_id LIKE ?)
@@ -151,7 +251,9 @@ export function listThreads(params: {
   const like = `%${params.query ?? ""}%`;
   type Row = {
     account_id: string; thread_id: string; thread_type: number; display_name: string;
-    bot_enabled: number; message_count: number; last_message_at: string | null;
+    bot_enabled: number; conversation_state: ConversationState; handoff_reason: string;
+    handoff_summary: string; handoff_at: string | null;
+    message_count: number; last_message_at: string | null;
     last_sender_name: string | null;
   };
   const rows = listStmt.all(
@@ -163,6 +265,10 @@ export function listThreads(params: {
     threadType: r.thread_type,
     displayName: r.display_name,
     botEnabled: r.bot_enabled === 1,
+    conversationState: r.conversation_state,
+    handoffReason: r.handoff_reason,
+    handoffSummary: r.handoff_summary,
+    handoffAt: r.handoff_at,
     messageCount: r.message_count,
     lastMessageAt: r.last_message_at,
     lastSenderName: r.last_sender_name,

@@ -7,13 +7,13 @@ import { appendMessage, setMessageImages } from "../conversation/history-store.j
 import { imagePathsOf, persistBatchImages } from "../conversation/media-store.js";
 import {
   hasDisplayName,
+  handoffThread,
   isBotEnabled,
   recordThreadActivity,
   setThreadDisplayName,
 } from "../conversation/thread-store.js";
 import { shouldRespond } from "../middleware/allowlist-filter.js";
 import { cancelPendingMessages, enqueueMessage } from "../middleware/message-batcher.js";
-import { setBotEnabled } from "../conversation/thread-store.js";
 import { isSentByBot } from "./bot-sent-tracker.js";
 import { createLogger } from "../shared/logger.js";
 import { maybeNotifyBusyWait } from "./busy-wait-notice.js";
@@ -55,23 +55,20 @@ export async function routeIncomingMessage(
       return;
     }
 
-    const typeLower = String(msg.rawData?.msgType ?? "").toLowerCase();
-    const isSticker = typeLower.includes("sticker");
-
-    if (isSticker) {
-      log.info(
-        { accountId: config.id, threadId: msg.threadId, text: msg.text },
-        "Chủ tài khoản đã trực tiếp thả sticker -> Tự động DỪNG Bot ở cuộc hội thoại này.",
-      );
-      setBotEnabled(config.id, msg.threadId, false);
-      const threadKey = `${config.id}:${msg.threadId}`;
-      cancelPendingMessages(threadKey);
-    } else {
-      log.info(
-        { accountId: config.id, threadId: msg.threadId, text: msg.text },
-        "Chủ tài khoản nhắn tin chữ/ảnh -> Chỉ ghi nhận vào lịch sử, KHÔNG dừng bot.",
-      );
-    }
+    handoffThread({
+      accountId: config.id,
+      threadId: msg.threadId,
+      threadType: msg.threadType,
+      lastSenderName: "Hoà",
+      reason: "owner_message",
+      summary: "Chủ tài khoản đã trực tiếp tham gia cuộc trò chuyện",
+    });
+    const threadKey = `${config.id}:${msg.threadId}`;
+    cancelPendingMessages(threadKey);
+    log.info(
+      { accountId: config.id, threadId: msg.threadId, text: msg.text },
+      "Chủ tài khoản đã trực tiếp nhắn -> Tự động bàn giao và DỪNG bot.",
+    );
 
     if (msg.text.trim() || msg.images.length > 0) {
       appendMessage(config.id, msg.threadId, {

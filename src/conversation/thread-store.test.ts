@@ -58,6 +58,39 @@ describe("thread-store", () => {
 
     assert.equal(threads.setBotEnabled("acc-1", "t-toggle", true), true);
     assert.equal(threads.isBotEnabled("acc-1", "t-toggle"), true);
+    assert.equal(threads.getConversationState("acc-1", "t-toggle")?.state, "bot_active");
+  });
+
+  it("handoff idempotent và bật lại từ dashboard xóa metadata bàn giao", () => {
+    const first = threads.handoffThread({
+      ...activity("t-handoff"),
+      reason: "meeting_confirmed",
+      summary: "Hẹn sáng thứ Bảy tại Gia Định",
+    });
+    assert.equal(first.changed, true);
+    assert.equal(threads.isBotEnabled("acc-1", "t-handoff"), false);
+    assert.deepEqual(threads.getConversationState("acc-1", "t-handoff"), {
+      state: "human_owned",
+      reason: "meeting_confirmed",
+      summary: "Hẹn sáng thứ Bảy tại Gia Định",
+      handoffAt: threads.getConversationState("acc-1", "t-handoff")?.handoffAt ?? null,
+    });
+
+    const second = threads.handoffThread({
+      ...activity("t-handoff"),
+      reason: "meeting_confirmed",
+      summary: "Không được ghi đè",
+    });
+    assert.equal(second.changed, false);
+    assert.equal(threads.getConversationState("acc-1", "t-handoff")?.summary, "Hẹn sáng thứ Bảy tại Gia Định");
+
+    threads.setBotEnabled("acc-1", "t-handoff", true);
+    assert.deepEqual(threads.getConversationState("acc-1", "t-handoff"), {
+      state: "bot_active",
+      reason: "",
+      summary: "",
+      handoffAt: null,
+    });
   });
 
   it("setBotEnabled trả false với thread không tồn tại", () => {

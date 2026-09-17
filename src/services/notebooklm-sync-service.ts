@@ -3,7 +3,6 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { generateObject } from "ai";
 import { z } from "zod";
 import { dataDir } from "../config/env.js";
@@ -14,18 +13,23 @@ import { db as appDb } from "../conversation/database.js";
 
 const log = createLogger("notebooklm-sync");
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const STATE_FILE_PATH = path.join(dataDir, "notebooklm-sync-state.json");
 const GRAPH_DB_PATH = path.join(dataDir, "banking-graph.db");
-const CORE_PERSONA_PATH = path.resolve(__dirname, "../../data/personas/core-persona.md");
+const CORE_PERSONA_PATH = path.resolve(dataDir, "personas/core-persona.md");
 
 const MCP_COMMAND =
   process.env.NOTEBOOKLM_MCP_COMMAND ||
-  "/Users/vovanhoa.bankgmail.com/Documents/antigravity/quick-raman/.venv/bin/notebooklm-mcp";
+  "notebooklm-mcp";
 
-const MCP_CLI_PATH =
-  process.env.NOTEBOOKLM_MCP_CLI_PATH ||
-  "/Users/vovanhoa.bankgmail.com/.notebooklm-mcp-cli";
+const MCP_CLI_PATH = process.env.NOTEBOOKLM_MCP_CLI_PATH;
+
+function subprocessEnv(): Record<string, string> {
+  const clean = Object.fromEntries(
+    Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  );
+  if (MCP_CLI_PATH) clean.NOTEBOOKLM_MCP_CLI_PATH = MCP_CLI_PATH;
+  return clean;
+}
 
 /**
  * Danh sách ID các sổ tay chính thức được liên kết với bot OCB:
@@ -93,10 +97,7 @@ async function createMcpClient(): Promise<Client> {
   const transport = new StdioClientTransport({
     command: MCP_COMMAND,
     args: [],
-    env: {
-      ...process.env,
-      NOTEBOOKLM_MCP_CLI_PATH: MCP_CLI_PATH,
-    },
+    env: subprocessEnv(),
   });
 
   const client = new Client(

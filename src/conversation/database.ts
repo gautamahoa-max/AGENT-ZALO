@@ -304,6 +304,25 @@ function runMigrations(): void {
     );
     CREATE INDEX IF NOT EXISTS idx_leads_status_created ON leads (status, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_leads_thread ON leads (account_id, thread_id);
+
+    -- File do agent tạo nhưng phải được chủ tài khoản duyệt trước khi gửi.
+    -- Lưu trong SQLite thay cho JSON để hai lần bấm đồng thời không cùng gửi
+    -- một file và để giữ được dấu vết ai/lúc nào đã duyệt.
+    CREATE TABLE IF NOT EXISTS pending_approvals (
+      id TEXT PRIMARY KEY,
+      file_path TEXT NOT NULL,
+      caption TEXT NOT NULL DEFAULT '',
+      thread_id TEXT NOT NULL,
+      thread_type INTEGER NOT NULL,
+      account_id TEXT NOT NULL,
+      status TEXT NOT NULL CHECK (status IN ('pending', 'sending', 'sent', 'expired')) DEFAULT 'pending',
+      last_error TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      expires_at TEXT NOT NULL,
+      sent_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_pending_approvals_status_expiry
+      ON pending_approvals (status, expires_at);
   `);
 
   // Tool CHẠY LỖI: AI SDK để chúng ở content dạng tool-error, không vào
@@ -333,6 +352,20 @@ function runMigrations(): void {
   // xoay thì router vẫn coi đây là phiên cũ và giữ tiền tố đã cache của cuộc
   // trò chuyện vừa bị xóa. Mặc định 0 để mọi thread cũ giữ nguyên khóa đang có.
   addColumnIfMissing("threads", "context_epoch", "INTEGER NOT NULL DEFAULT 0");
+
+  // Trạng thái sở hữu hội thoại. `bot_enabled` vẫn được giữ để tương thích UI
+  // và scheduler cũ; hai cột luôn được cập nhật cùng nhau trong thread-store.
+  addColumnIfMissing("threads", "conversation_state", "TEXT NOT NULL DEFAULT 'bot_active'");
+  addColumnIfMissing("threads", "handoff_reason", "TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing("threads", "handoff_summary", "TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing("threads", "handoff_at", "TEXT");
+  // Các thread đã được tắt bot từ phiên bản cũ phải tiếp tục thể hiện đúng là
+  // người thật đang sở hữu, thay vì nhận mặc định `bot_active` của cột mới.
+  db.exec(`
+    UPDATE threads
+    SET conversation_state = 'human_owned'
+    WHERE bot_enabled = 0 AND conversation_state = 'bot_active'
+  `);
 
   // Phản hồi tức thì: thả reaction + báo "đang nhập" khi bot bắt đầu xử lý
   addColumnIfMissing("accounts", "auto_react_enabled", "INTEGER NOT NULL DEFAULT 1");

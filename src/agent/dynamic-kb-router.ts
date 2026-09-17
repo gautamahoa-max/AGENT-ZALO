@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { MemoryContext } from "../conversation/memory-store.js";
+import { dataDir } from "../config/env.js";
 
 // ---------------------------------------------------------------------------
 // Dynamic KB Router
@@ -14,10 +15,14 @@ import type { MemoryContext } from "../conversation/memory-store.js";
 // ---------------------------------------------------------------------------
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const PERSONAS_DIR = resolve(__dirname, "../../data/personas");
+const RUNTIME_PERSONAS_DIR = resolve(dataDir, "personas");
+const BUNDLED_PERSONAS_DIR = resolve(__dirname, "../../personas");
 
 /** Đường dẫn tới file core persona (luôn load) */
-const CORE_PERSONA_PATH = resolve(PERSONAS_DIR, "core-persona.md");
+const personaPaths = (filename: string): string[] => [
+  resolve(RUNTIME_PERSONAS_DIR, filename),
+  resolve(BUNDLED_PERSONAS_DIR, filename),
+];
 
 /** Số lượng Dynamic KB tối đa mỗi lượt */
 const MAX_DYNAMIC_KBS = 3;
@@ -109,15 +114,16 @@ function readKBFile(filename: string): string {
   const cached = fileCache.get(filename);
   if (cached !== undefined) return cached;
 
-  const filepath = resolve(PERSONAS_DIR, filename);
-  try {
-    const content = readFileSync(filepath, "utf-8").trim();
-    fileCache.set(filename, content);
-    return content;
-  } catch {
-    // File chưa tồn tại → trả về rỗng, không crash
-    return "";
+  for (const filepath of personaPaths(filename)) {
+    try {
+      const content = readFileSync(filepath, "utf-8").trim();
+      fileCache.set(filename, content);
+      return content;
+    } catch {
+      // Thử runtime override trước, rồi mới tới bản mặc định đóng gói.
+    }
   }
+  return "";
 }
 
 /**
@@ -127,13 +133,7 @@ export function readCorePersona(): string {
   const cached = fileCache.get("core-persona.md");
   if (cached !== undefined) return cached;
 
-  try {
-    const content = readFileSync(CORE_PERSONA_PATH, "utf-8").trim();
-    fileCache.set("core-persona.md", content);
-    return content;
-  } catch {
-    return "";
-  }
+  return readKBFile("core-persona.md");
 }
 
 export interface DynamicKBContext {

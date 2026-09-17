@@ -30,13 +30,13 @@
     "personal-assistant"
   ],
   "license": "MIT",
-  "homepage": "https://github.com/vuhai2002/zalo-agent#readme",
+  "homepage": "https://github.com/gautamahoa-max/AGENT-ZALO#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/vuhai2002/zalo-agent.git"
+    "url": "git+https://github.com/gautamahoa-max/AGENT-ZALO.git"
   },
   "bugs": {
-    "url": "https://github.com/vuhai2002/zalo-agent/issues"
+    "url": "https://github.com/gautamahoa-max/AGENT-ZALO/issues"
   },
   "type": "module",
   "engines": {
@@ -47,7 +47,7 @@
     "dev:web": "vite web",
     "start": "tsx src/index.ts",
     "zalo-login": "tsx scripts/login-account.ts",
-    "test": "node --import tsx --test \"src/**/*.test.ts\" \"web/src/**/*.test.ts\" \"evals/**/*.test.ts\"",
+    "test": "node --import tsx --import ./src/shared/test-process-env.ts --test \"src/**/*.test.ts\" \"web/src/**/*.test.ts\" \"evals/**/*.test.ts\"",
     "typecheck": "tsc --noEmit && tsc --noEmit -p web",
     "build": "tsc -p tsconfig.build.json",
     "build:web": "vite build web",

@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { DatabaseSync } from "node:sqlite";
+import fs from "node:fs";
 import path from "node:path";
 import { dataDir } from "../../config/env.js";
 import { createLogger } from "../../shared/logger.js";
@@ -9,21 +10,25 @@ const log = createLogger("knowledge-graph");
 
 export const queryKnowledgeGraphTool = tool({
   description:
-    "Dùng để truy vấn thông tin dự án BĐS (Bcons, Palm City, The Privé, Gladia), lãi suất ưu đãi, LTV, ân hạn gốc, phí phạt trả trước, hoa hồng môi giới bằng SQL từ Knowledge Graph (Sự thật tuyệt đối OCB 2026). Schema: entities(id, type, name), relations(source_id, target_id, relation_type), attributes(entity_id, key, value). Entity types: 'PROJECT', 'POLICY', 'DEVELOPER'. Relation type: 'APPLIES_POLICY', 'DEVELOPED_BY'. Attribute keys: 'lai_suat_uu_dai', 'thoi_gian_uu_dai', 'an_han_goc', 'LTV_toi_da', 'thoi_han_vay_max', 'lai_suat_tha_noi', 'phi_tra_truoc_han', 'hoa_hong_moi_gioi', 'von_tu_co_min', 'dac_quyen_qua_tang', 'chu_dau_tu', 'luu_y_dac_biet'.",
+    "Truy vấn bản sao Knowledge Graph nội bộ về dự án và chính sách OCB. Dữ liệu chỉ được dùng khi kết quả có nguồn/ngày hiệu lực còn hợp lệ; không coi là sự thật tuyệt đối. Chỉ hỗ trợ một câu SELECT, tối đa 100 dòng. Schema: entities(id, type, name), relations(source_id, target_id, relation_type), attributes(entity_id, key, value).",
   inputSchema: z.object({
     sqlQuery: z.string().describe("Câu lệnh SELECT SQL để truy xuất dữ liệu từ các bảng."),
   }),
   execute: async ({ sqlQuery }) => {
     log.info({ sqlQuery }, "Executing SQL on Knowledge Graph");
     const dbPath = path.join(dataDir, "banking-graph.db");
-    const db = new DatabaseSync(dbPath);
+    if (!fs.existsSync(dbPath)) {
+      return "Kho Knowledge Graph chưa được khởi tạo; cần Hoà kiểm tra nguồn chính sách.";
+    }
+    const normalized = sqlQuery.trim().replace(/;\s*$/, "");
+    if (!/^SELECT\b/i.test(normalized) || normalized.includes(";") || normalized.length > 8_000) {
+      return "Lỗi: Chỉ cho phép đúng một câu SELECT, không có câu lệnh nối tiếp.";
+    }
+    const db = new DatabaseSync(dbPath, { readOnly: true });
     try {
-      if (!sqlQuery.trim().toUpperCase().startsWith("SELECT")) {
-        return "Lỗi: Chỉ được phép thực thi câu lệnh SELECT.";
-      }
-      const stmt = db.prepare(sqlQuery);
+      const stmt = db.prepare(`SELECT * FROM (${normalized}) AS policy_query LIMIT 100`);
       const results = stmt.all();
-      return JSON.stringify(results, null, 2);
+      return JSON.stringify({ warning: "Phải kiểm tra nguồn và ngày hiệu lực trước khi tư vấn", rows: results }, null, 2);
     } catch (e: any) {
       log.error({ error: e.message, sqlQuery }, "Lỗi khi chạy SQL");
       return "Lỗi SQL: " + e.message + "\nHãy kiểm tra lại Schema: entities(id, type, name), relations(source_id, target_id, relation_type), attributes(entity_id, key, value). Dùng JOIN nếu cần.";

@@ -7,12 +7,12 @@ import assert from "node:assert/strict";
 
 import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import fs from "node:fs";
 
 const TEST_DB_PATH = path.join(process.cwd(), "data", "__test_banking_graph.db");
 
 function createTestDb() {
+  fs.mkdirSync(path.dirname(TEST_DB_PATH), { recursive: true });
   if (fs.existsSync(TEST_DB_PATH)) fs.unlinkSync(TEST_DB_PATH);
   const db = new DatabaseSync(TEST_DB_PATH);
   db.exec(`

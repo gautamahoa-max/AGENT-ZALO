@@ -1,5 +1,5 @@
 import nodemailer from "nodemailer";
-import { savePendingApproval } from "../../server/routes/approval-routes.js";
+import { savePendingApproval } from "../../conversation/approval-store.js";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import { networkInterfaces } from "node:os";
@@ -9,6 +9,7 @@ import ExcelJS from "exceljs";
 import { z } from "zod";
 import { dataDir } from "../../config/env.js";
 import { createLogger } from "../../shared/logger.js";
+import { escapeHtml } from "../../shared/escape-html.js";
 import type { ToolContext } from "./index.js";
 import { ketQuaLoi } from "./tool-failure-result.js";
 
@@ -17,28 +18,24 @@ const log = createLogger("export-mortgage-plan");
 const PROJECT_CONFIG = {
   the_prive: {
     template: "Bang_Tinh_Lai_The_Prive.xlsx",
-    desktopTemplate: "THE_PRIVÉ.xlsx",
     sheet: "THE PRIVÉ",
     prefix: "The_Prive",
     displayName: "THE PRIVÉ",
   },
   palm_river: {
     template: "Bang_Tinh_Lai_Palm_River.xlsx",
-    desktopTemplate: "PALM_RIVER.xlsx",
     sheet: "PALM RIVER",
     prefix: "Palm_River",
     displayName: "PALM RIVER",
   },
   gladia: {
     template: "Bang_Tinh_Lai_Gladia.xlsx",
-    desktopTemplate: "GLADIA_BY_THE_WATERS.xlsx",
     sheet: "GLADIA BY THE WATERS",
     prefix: "Gladia",
     displayName: "GLADIA BY THE WATERS",
   },
   bcons: {
     template: "Bang_Tinh_Lai_Bcons.xlsx",
-    desktopTemplate: "BCONS.xlsx",
     sheet: "BCONS",
     prefix: "Bcons",
     displayName: "BCONS",
@@ -48,10 +45,10 @@ const PROJECT_CONFIG = {
 type ProjectKey = keyof typeof PROJECT_CONFIG;
 
 const MO_TA = [
-  "Tự động điền các thông số vay vốn vào file Excel bảng tính gốc lãi chuẩn của 4 dự án (THE PRIVÉ, PALM RIVER, GLADIA BY THE WATERS, BCONS) và GỬI THẲNG file .xlsx qua Zalo cho khách hàng.",
+  "Tự động điền các thông số vay vốn vào file Excel của 4 dự án (THE PRIVÉ, PALM RIVER, GLADIA BY THE WATERS, BCONS) rồi đưa vào HÀNG CHỜ để chủ tài khoản xem và duyệt trước khi gửi qua Zalo.",
   "",
   "DÙNG KHI: Khách hàng hỏi bảng tính chi tiết, muốn xem lịch trả nợ 20-30 năm, tiến độ giải ngân theo từng đợt, so sánh gói ưu đãi lãi suất, hoặc hỏi số tiền trả từng tháng của 1 trong 4 dự án.",
-  "Đã tự động gửi file qua Zalo rồi, KHÔNG gọi thêm tool send_file để gửi lại.",
+  "File CHƯA được gửi cho khách cho tới khi chủ tài khoản đăng nhập dashboard và bấm duyệt. KHÔNG gọi thêm tool send_file để né bước duyệt.",
 ].join("\n");
 
 type Ctx = Pick<ToolContext, "api" | "account" | "message" | "ghiNhanDaGui">;
@@ -127,19 +124,25 @@ export function createExportMortgagePlanTool(ctx: Ctx) {
           return ketQuaLoi(`Dự án '${project}' không nằm trong danh sách hỗ trợ.`);
         }
 
-        let templatePath = path.join(dataDir, "templates", conf.template);
-
-        if (!fs.existsSync(templatePath)) {
-          const desktopPath = path.join("/Users/vovanhoa.bankgmail.com/Desktop", conf.desktopTemplate);
-          if (fs.existsSync(desktopPath)) {
-            templatePath = desktopPath;
-          } else {
-            return ketQuaLoi(`Không tìm thấy file mẫu bảng tính lãi của dự án ${conf.displayName}`);
-          }
-        }
-
+        const templatePath = path.join(dataDir, "templates", conf.template);
         const workbook = new ExcelJS.Workbook();
-        await workbook.xlsx.readFile(templatePath);
+        if (fs.existsSync(templatePath)) {
+          await workbook.xlsx.readFile(templatePath);
+        } else {
+          // Fresh clone/Docker không có file nghiệp vụ riêng của ngân hàng. Tạo
+          // bảng chuẩn tối thiểu để tính toán vẫn hoạt động; khi đặt template
+          // thật vào DATA_DIR/templates, tool tự dùng bản nhận diện đầy đủ.
+          const fallback = workbook.addWorksheet(conf.sheet);
+          fallback.columns = [
+            { header: "Thông số", key: "label", width: 34 },
+            { header: "Giá trị", key: "value", width: 24 },
+          ];
+          fallback.addRows([
+            { label: `Bảng tính khoản vay ${conf.displayName}` },
+            { label: "Ngày tạo", value: new Date().toISOString() },
+          ]);
+          log.warn({ project, templatePath }, "Thiếu template dự án, dùng workbook chuẩn tối thiểu");
+        }
 
         const ws = workbook.getWorksheet(conf.sheet) || workbook.worksheets[0];
         if (!ws) {
@@ -181,7 +184,7 @@ export function createExportMortgagePlanTool(ctx: Ctx) {
           threadId: ctx.message.threadId,
           threadType: ctx.message.threadType,
           accountId: ctx.account.id,
-          timestamp: new Date().toISOString()
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         });
 
         const user = process.env.GMAIL_USER || "Gautamahoa@gmail.com";
@@ -219,12 +222,12 @@ export function createExportMortgagePlanTool(ctx: Ctx) {
               to: user,
               subject: `[Duyệt Bảng Tính Vay] ${customer_name} - ${conf.displayName}`,
               html: `
-                <h3>Bot đã lên xong Bảng tính dòng tiền vay cho khách hàng: ${customer_name}</h3>
-                <p>Dự án: <b>${conf.displayName}</b></p>
+                <h3>Bot đã lên xong Bảng tính dòng tiền vay cho khách hàng: ${escapeHtml(customer_name || "Khách hàng")}</h3>
+                <p>Dự án: <b>${escapeHtml(conf.displayName)}</b></p>
                 <p>Vay: <b>${(loan_amount/1000000000).toFixed(2)} tỷ</b></p>
                 <p>File Excel đã được đính kèm trong email này để anh kiểm tra.</p>
                 <br>
-                <a href="${approveUrl}" style="background:#16a34a;color:white;padding:12px 20px;text-decoration:none;border-radius:6px;font-weight:bold;display:inline-block;">DUYỆT & GỬI QUA ZALO</a>
+                <a href="${approveUrl}" style="background:#16a34a;color:white;padding:12px 20px;text-decoration:none;border-radius:6px;font-weight:bold;display:inline-block;">MỞ TRANG KIỂM TRA & DUYỆT</a>
                 <br><br>
                 <p style="color:gray;font-size:12px;">⚠️ <b>Lưu ý (Chế độ Tailscale 4G):</b> Nếu dùng 4G, điện thoại phải đang bật app Tailscale. URL duyệt hiện tại đang chạy qua IP: <b>${finalIp}</b>.</p>
                 <p style="color:gray;font-size:12px;">Nếu sai, anh có thể tải file đính kèm sửa lại rồi tự gửi qua Zalo cho khách.</p>

@@ -2,7 +2,7 @@
 
 <p align="center">
 A self-hosted AI agent that lives inside <strong>Zalo</strong> on a personal account.<br/>
-Multi-account in one process, a separate "brain" per account, 13 tools, full web dashboard.<br/>
+Multi-account in one process, a separate "brain" per account, an extensible toolset, and a full web dashboard.<br/>
 Provider-agnostic: any OpenAI-compatible endpoint or Anthropic.
 </p>
 
@@ -20,7 +20,7 @@ Provider-agnostic: any OpenAI-compatible endpoint or Anthropic.
   <img src="https://img.shields.io/badge/Node-22.13+-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node" />
   <img src="https://img.shields.io/badge/SQLite-node:sqlite-003B57?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite" />
   <img src="https://img.shields.io/badge/AI_SDK-Vercel-000000?style=flat-square&logo=vercel&logoColor=white" alt="Vercel AI SDK" />
-  <img src="https://img.shields.io/badge/tests-1556%20passing-brightgreen?style=flat-square" alt="tests" />
+  <img src="https://img.shields.io/badge/tests-1608%20passing-brightgreen?style=flat-square" alt="tests" />
 </p>
 
 ---
@@ -36,7 +36,7 @@ marker that tells the model it is *data*, never an instruction.
 
 ## What the bot can do
 
-13 tools, each toggleable per account from the dashboard.
+Tools can be toggled per account from the dashboard.
 
 | Tool | Purpose |
 |---|---|
@@ -53,6 +53,17 @@ marker that tells the model it is *data*, never an instruction.
 | `tag_member` | @mention the right person in a group |
 | `get_group_info` | Group name, member count, member list |
 | `add_reaction` | React to a message |
+| `handoff_to_human` | Stop the bot, create a lead, and transfer ownership after the customer confirms |
+
+### Human handoff
+
+When a customer confirms a meeting, asks to speak directly with the account
+owner, or needs a human to handle a complaint, `handoff_to_human` changes the
+thread to `human_owned`, stops the bot, cancels queued messages, and creates one
+idempotent lead. Any direct owner message also triggers takeover.
+
+Mortgage-plan files require an authenticated approval page. Opening an email or
+preview never sends a file; sending happens only after an explicit POST action.
 
 ### Real rich text, not plain walls
 
@@ -96,7 +107,7 @@ Hono + React + Tailwind, served by the bot process itself at `http://127.0.0.1:3
 | Contacts | People the bot has met |
 | Memory | Inspect, edit, delete anything the bot remembers |
 | Schedule | All jobs, dry-run now, per-run history |
-| Tools | Toggle the 13 tools per account; configure image generation and the vision sidecar |
+| Tools | Toggle tools per account; configure image generation and the vision sidecar |
 | Tuning | **54 runtime parameters**, applied live with no restart |
 | Trace | Step-by-step replay of an agent turn: reasoning, tool calls, arguments |
 | Logs | System log viewer |
@@ -158,7 +169,7 @@ account plus QR login.
 pnpm dev                    # bot (watch mode) + dashboard
 pnpm build:web              # build the UI; the bot serves it at http://127.0.0.1:3900
 pnpm zalo-login acc-main    # QR login from the CLI (the web flow is easier)
-pnpm test                   # 1556 tests
+pnpm test                   # 1608 tests
 pnpm typecheck
 pnpm eval                   # 17 cases against a REAL model; no message ever reaches real Zalo
 ```
@@ -190,7 +201,7 @@ Image generation and the vision sidecar are configured separately, also OpenAI-c
 
 | | |
 |---|---|
-| Unit + integration tests | **1556**, on `node:test`, no external framework |
+| Unit + integration tests | **1608**, on `node:test`, no external framework |
 | Eval cases against a real model | **17** - measuring what tests cannot: does it research instead of guessing, ask when information is missing, format readably |
 | Source | ~31,700 lines excluding tests, across 273 files |
 
@@ -207,7 +218,7 @@ src/
 ├── config/        env (Zod), account store, agent store, 54 live-tunable parameters
 ├── zalo/          QR login, encrypted credentials, listener + reconnect, message parsing,
 │                  sanitizer, markdown -> Zalo styles, byte-budget message splitting
-├── agent/         agent loop (AI SDK), providers, persona, tools/ (13 tools)
+├── agent/         agent loop (AI SDK), providers, persona, tools/
 ├── scheduler/     schedules: tick, job claiming, proactive-send caps, run history
 ├── conversation/  SQLite: history, threads, contacts, usage, memory, images, summarizer
 ├── middleware/    allowlist + @mention, per-thread batching, send rate limiting

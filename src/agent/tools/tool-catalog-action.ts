@@ -8,7 +8,7 @@ import { createSaveMemoryTool } from "./save-memory-tool.js";
 import { createSendFileTool } from "./send-file-tool.js";
 import { createTagMemberTool } from "./tag-member-tool.js";
 import { createAssignLabelTool } from "./assign-label-tool.js";
-import { createNotifyVipLeadTool } from "./notify-vip-lead-tool.js";
+import { createHandoffToHumanTool } from "./notify-vip-lead-tool.js";
 import { createExportMortgagePlanTool } from "./export-mortgage-plan-tool.js";
 import type { ToolDefinition } from "./tool-catalog-types.js";
 
@@ -120,19 +120,19 @@ export const ACTION_TOOL_DEFINITIONS: ToolDefinition[] = [
     build: (ctx) => createAssignLabelTool(ctx),
   },
   {
-    key: "notify_vip_lead",
-    label: "Báo khách VIP qua Gmail",
+    key: "handoff_to_human",
+    label: "Trao quyền cho Hoà",
     description:
-      "Gửi email thông báo khẩn cấp tới Gmail của Hoà (Gautamahoa@gmail.com) khi phát hiện khách VIP (vay lớn, mua BĐS cao cấp) hoặc khách chốt lịch hẹn cà phê",
+      "Dừng bot, tạo lead và báo cho Hoà khi khách đã chốt gặp hoặc yêu cầu người thật",
     group: "action",
     runsInScheduledTurn: false,
-    build: (ctx) => createNotifyVipLeadTool(ctx),
+    build: (ctx) => createHandoffToHumanTool(ctx),
   },
   {
     key: "export_mortgage_plan",
     label: "Xuất bảng tính gốc lãi dự án (Excel)",
     description:
-      "Tự động điền các thông số vay vốn vào file Excel bảng tính gốc lãi chuẩn của dự án (GLADIA hoặc BCONS) và GỬI THẲNG file .xlsx qua Zalo cho khách hàng",
+      "Tạo bảng tính vay Excel cho THE PRIVÉ, PALM RIVER, GLADIA hoặc BCONS và đưa vào hàng chờ để chủ tài khoản kiểm tra, duyệt trước khi gửi",
     group: "action",
     runsInScheduledTurn: false,
     build: (ctx) => createExportMortgagePlanTool(ctx),

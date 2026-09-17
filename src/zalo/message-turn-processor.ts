@@ -145,7 +145,7 @@ async function xuLyLuot(
   sendSeenReceipt(api, batch);
   sendAutoReaction(config, api, latest);
   // Tự động bắn email thông báo về Gmail cho Hoà bất cứ khi nào có tin nhắn Zalo mới
-  // Đã TẮT tính năng này theo yêu cầu của Hoà để tránh spam. Giờ chỉ gửi mail qua tool notify_vip_lead.
+  // Đã TẮT tính năng này để tránh spam. Lead/handoff chỉ đi qua tool handoff_to_human.
   // void notifyIncomingZaloMessage(batch);
 
   // Giữ "đang nhập" xuyên suốt: qua cả lượt LLM lẫn delay của rate-limiter,

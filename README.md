@@ -2,7 +2,7 @@
 
 <p align="center">
 Bot AI thường trú trên Zalo <strong>tài khoản cá nhân</strong>. Nhiều account chạy chung một tiến trình,<br/>
-mỗi account một "não" riêng, 13 công cụ, dashboard web đầy đủ. Tự host, không phụ thuộc nhà cung cấp LLM nào.
+mỗi account một "não" riêng, bộ công cụ mở rộng và dashboard web đầy đủ. Tự host, không phụ thuộc nhà cung cấp LLM nào.
 </p>
 
 <p align="center">
@@ -20,7 +20,7 @@ mỗi account một "não" riêng, 13 công cụ, dashboard web đầy đủ. T�
   <img src="https://img.shields.io/badge/Node-22.13+-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node" />
   <img src="https://img.shields.io/badge/SQLite-node:sqlite-003B57?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite" />
   <img src="https://img.shields.io/badge/AI_SDK-Vercel-000000?style=flat-square&logo=vercel&logoColor=white" alt="Vercel AI SDK" />
-  <img src="https://img.shields.io/badge/tests-1556%20xanh-brightgreen?style=flat-square" alt="tests" />
+  <img src="https://img.shields.io/badge/tests-1608%20xanh-brightgreen?style=flat-square" alt="tests" />
 </p>
 
 ---
@@ -33,7 +33,7 @@ là dữ liệu, không phải mệnh lệnh.
 
 ## Bot làm được gì
 
-13 công cụ, bật/tắt từng cái theo account ngay trên dashboard.
+Các công cụ có thể bật/tắt theo từng account ngay trên dashboard.
 
 | Công cụ | Làm gì |
 |---|---|
@@ -50,6 +50,18 @@ là dữ liệu, không phải mệnh lệnh.
 | `tag_member` | @mention đúng người trong nhóm |
 | `get_group_info` | Tên nhóm, số thành viên, danh sách thành viên |
 | `add_reaction` | Thả cảm xúc vào tin nhắn |
+| `handoff_to_human` | Dừng bot, tạo lead và trao quyền cho người thật sau khi khách xác nhận |
+
+### Bàn giao cho người thật
+
+Khi khách xác nhận gặp/cà phê, yêu cầu nói trực tiếp với chủ tài khoản hoặc cần
+người thật xử lý khiếu nại, `handoff_to_human` chuyển thread sang trạng thái
+`human_owned`, tắt bot, hủy tin đang chờ và tạo đúng một lead. Chủ tài khoản bật
+lại bot từ trang Cuộc trò chuyện sau khi xử lý xong. Việc chủ tài khoản tự nhắn
+vào thread cũng tự động kích hoạt bàn giao.
+
+File Excel do agent tạo luôn đi qua trang duyệt có đăng nhập. Mở email hoặc mở
+link chỉ hiển thị bản xem trước; file chỉ được gửi sau thao tác POST xác nhận.
 
 ### Tin nhắn có định dạng thật
 
@@ -93,7 +105,7 @@ Hono + React + Tailwind, phục vụ ngay từ chính tiến trình bot tại `h
 | Contacts | Danh bạ đã gặp |
 | Memory | Xem, sửa, xóa từng điều bot đã nhớ |
 | Lịch hẹn | Danh sách lịch, chạy thử ngay, lịch sử từng lần chạy |
-| Tools | Bật/tắt 13 công cụ theo account, cấu hình vẽ ảnh và model vision |
+| Tools | Bật/tắt công cụ theo account, cấu hình vẽ ảnh và model vision |
 | Cấu hình | **54 tham số** vận hành chỉnh nóng, không cần khởi động lại |
 | Trace | Xem lại từng bước của một lượt agent: model nghĩ gì, gọi tool nào, tham số ra sao |
 | Logs | Nhật ký hệ thống |
@@ -159,7 +171,7 @@ pnpm dev                    # bot (watch mode) + dashboard
 pnpm build:web              # build UI -> web/dist, bot tự serve tại http://127.0.0.1:3900
 pnpm dev:web                # dev UI dashboard (Vite, proxy vào API)
 pnpm zalo-login acc-chinh   # login QR bằng CLI (cách cũ - trên web tiện hơn)
-pnpm test                   # 1556 test
+pnpm test                   # 1608 test
 pnpm typecheck              # bắt buộc chạy trước khi báo hoàn thành
 pnpm eval                   # 17 case chạy MODEL THẬT, không tin nào ra Zalo thật
 ```
@@ -192,7 +204,7 @@ Vẽ ảnh và model vision phụ cấu hình riêng, cũng theo chuẩn OpenAI-
 
 | | |
 |---|---|
-| Test đơn vị + tích hợp | **1556**, chạy bằng `node:test`, không framework ngoài |
+| Test đơn vị + tích hợp | **1608**, chạy bằng `node:test`, không framework ngoài |
 | Case eval chạy model THẬT | **17** - đo thứ test không đo nổi: có tra cứu thay vì đoán không, có hỏi lại khi thiếu thông tin không, trình bày có dễ đọc không |
 | Nguồn | ~31.700 dòng (không tính test), 273 file |
 
@@ -209,7 +221,7 @@ src/
 ├── config/        env (Zod), account store, agent store, 54 tham số chỉnh nóng
 ├── zalo/          login QR, credential mã hóa, listener + reconnect, parse tin,
 │                  lớp làm sạch + dịch markdown sang định dạng Zalo, cắt tin theo byte
-├── agent/         agent loop (AI SDK), provider, persona, tools/ (13 công cụ)
+├── agent/         agent loop (AI SDK), provider, persona, tools/
 ├── scheduler/     lịch hẹn: tick, giành job, trần tin chủ động, lịch sử chạy
 ├── conversation/  SQLite: history, threads, contacts, usage, memory, ảnh, summarizer
 ├── middleware/    allowlist + @mention, gộp tin theo thread, rate limit gửi

@@ -208,7 +208,7 @@ describe("tool-registry", () => {
     "create_excel_file",
     "create_image",
     "tag_member",
-    "notify_vip_lead",
+    "handoff_to_human",
     "export_mortgage_plan",
   ];
 

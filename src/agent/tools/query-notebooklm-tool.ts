@@ -3,6 +3,7 @@ import { z } from "zod";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { DatabaseSync } from "node:sqlite";
+import fs from "node:fs";
 import path from "node:path";
 import { dataDir } from "../../config/env.js";
 import { createLogger } from "../../shared/logger.js";
@@ -15,8 +16,8 @@ let mcpTransport: StdioClientTransport | null = null;
 let connectingPromise: Promise<Client> | null = null;
 let consecutiveFailures = 0;
 
-/** Max thời gian chờ MCP trả kết quả (ms) - Đặt 15s để đảm bảo truy vấn cross-notebook trên 7 sổ không bị timeout sớm */
-const MCP_TIMEOUT_MS = Number(process.env.NOTEBOOKLM_TIMEOUT_MS) || 15_000;
+/** Ngân sách cho TOÀN BỘ connect + query, không nhân đôi theo từng bước. */
+const MCP_TIMEOUT_MS = Number(process.env.NOTEBOOKLM_TIMEOUT_MS) || 8_000;
 /** Sau bao nhiêu lỗi liên tiếp thì bỏ reconnect, chỉ dùng fallback */
 const MAX_CONSECUTIVE_FAILURES = 3;
 /** Thời điểm circuit breaker mở — cooldown trước khi thử lại MCP */
@@ -30,11 +31,17 @@ const NOTEBOOK_IDS =
 
 const MCP_COMMAND =
   process.env.NOTEBOOKLM_MCP_COMMAND ||
-  "/Users/vovanhoa.bankgmail.com/Documents/antigravity/quick-raman/.venv/bin/notebooklm-mcp";
+  "notebooklm-mcp";
 
-const MCP_CLI_PATH =
-  process.env.NOTEBOOKLM_MCP_CLI_PATH ||
-  "/Users/vovanhoa.bankgmail.com/.notebooklm-mcp-cli";
+const MCP_CLI_PATH = process.env.NOTEBOOKLM_MCP_CLI_PATH;
+
+function subprocessEnv(): Record<string, string> {
+  const clean = Object.fromEntries(
+    Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  );
+  if (MCP_CLI_PATH) clean.NOTEBOOKLM_MCP_CLI_PATH = MCP_CLI_PATH;
+  return clean;
+}
 
 // ─────────────────── GRACEFUL DISCONNECT ───────────────────
 function killMcpClient() {
@@ -69,10 +76,7 @@ async function getMcpClient(): Promise<Client> {
     mcpTransport = new StdioClientTransport({
       command: MCP_COMMAND,
       args: [],
-      env: {
-        ...process.env,
-        NOTEBOOKLM_MCP_CLI_PATH: MCP_CLI_PATH,
-      },
+      env: subprocessEnv(),
     });
 
     const client = new Client(
@@ -83,7 +87,6 @@ async function getMcpClient(): Promise<Client> {
     await client.connect(mcpTransport);
     mcpClient = client;
     connectingPromise = null;
-    consecutiveFailures = 0; // reset sau khi kết nối thành công
     log.info("Kết nối MCP NotebookLM thành công");
     return client;
   })().catch((err) => {
@@ -126,7 +129,8 @@ function queryKnowledgeGraphFast(query: string): string | null {
   const dbPath = path.join(dataDir, "banking-graph.db");
   let db: DatabaseSync | null = null;
   try {
-    db = new DatabaseSync(dbPath);
+    if (!fs.existsSync(dbPath)) return null;
+    db = new DatabaseSync(dbPath, { readOnly: true });
     const lowerQ = query.toLowerCase();
     const normQ = stripAccents(query);
 
@@ -342,7 +346,10 @@ function queryKnowledgeGraphFallback(query: string): string {
   const dbPath = path.join(dataDir, "banking-graph.db");
   let db: DatabaseSync | null = null;
   try {
-    db = new DatabaseSync(dbPath);
+    if (!fs.existsSync(dbPath)) {
+      return "Kho chính sách nội bộ chưa được khởi tạo; cần Hoà kiểm tra nguồn trước khi tư vấn.";
+    }
+    db = new DatabaseSync(dbPath, { readOnly: true });
     // Trả tổng quan tất cả dự án trong SQLite
     const allProjects = db.prepare(`
       SELECT e.name, a.key, a.value
@@ -394,13 +401,15 @@ export function createQueryNotebookLMTool() {
       // ── BƯỚC 2: Nếu chưa có trong SQLite -> Gọi NotebookLM qua MCP với timeout ngắn (6s) ──
       log.info({ query }, "RAG: Không có thực thể khớp tĩnh -> Chuyển tiếp truy vấn NotebookLM MCP...");
       try {
-        const client = await withTimeout(getMcpClient(), MCP_TIMEOUT_MS, "MCP connect");
+        const deadline = Date.now() + MCP_TIMEOUT_MS;
+        const remaining = () => Math.max(1, deadline - Date.now());
+        const client = await withTimeout(getMcpClient(), remaining(), "MCP connect");
         const result = await withTimeout(
           client.callTool({
             name: "cross_notebook_query",
             arguments: { notebook_names: NOTEBOOK_IDS, query },
           }),
-          MCP_TIMEOUT_MS,
+          remaining(),
           "MCP cross_notebook_query",
         );
 

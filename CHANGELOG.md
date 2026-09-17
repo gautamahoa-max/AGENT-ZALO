@@ -161,5 +161,5 @@ Bản đầu tiên được đánh số. Gom toàn bộ những gì đã làm t�
   mệnh lệnh; tin của người ngoài danh sách cho phép có nhãn riêng
 - Rate limit đăng nhập dashboard, phiên lưu trong DB nên đăng xuất thu hồi được thật
 
-[Chưa phát hành]: https://github.com/vuhai2002/zalo-agent/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/vuhai2002/zalo-agent/releases/tag/v0.1.0
+[Chưa phát hành]: https://github.com/gautamahoa-max/AGENT-ZALO/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/gautamahoa-max/AGENT-ZALO/releases/tag/v0.1.0

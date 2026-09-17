@@ -64,6 +64,20 @@ function noiDungHistory(threadId: string): string[] {
 }
 
 describe("routeIncomingMessage - tin bị bỏ vì hàng chờ chạm trần", () => {
+  it("chủ tài khoản nhắn chữ thì lập tức dừng bot và nhận quyền hội thoại", async () => {
+    const threadId = "thread-owner-takeover";
+    await router.routeIncomingMessage(ACC, apiGia, SELF, {
+      threadId,
+      type: ThreadType.User,
+      isSelf: true,
+      data: { content: "Anh tiếp quản nhé", uidFrom: SELF, dName: "Hoà", msgId: "m-owner", cliMsgId: "c-owner" },
+    });
+
+    const threads = await import("../conversation/thread-store.js");
+    assert.equal(threads.isBotEnabled(ACC, threadId), false);
+    assert.equal(threads.getConversationState(ACC, threadId)?.state, "human_owned");
+  });
+
   it("vẫn vào history, để bot còn biết người ta đã nói gì", async () => {
     const threadId = "thread-tran-history";
     const threadKey = `${ACC}:${threadId}`;

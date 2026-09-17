@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import { after, before, describe, it } from "node:test";
 import type { Hono } from "hono";
 import { cleanupTestEnv, setupTestEnv } from "../shared/test-env-setup.js";
@@ -69,6 +71,45 @@ describe("dashboard-server", () => {
   it("login đúng -> cookie dùng được cho /api/auth/me", async () => {
     const res = await authed("/api/auth/me");
     assert.equal(res.status, 200);
+  });
+
+  it("approval bắt buộc đăng nhập, GET chỉ preview và POST kiểm tra Origin", async () => {
+    const filePath = path.join(dataDir, "approval-test.xlsx");
+    fs.writeFileSync(filePath, "test");
+    const approvals = await import("../conversation/approval-store.js");
+    approvals.savePendingApproval({
+      id: "approval-test",
+      filePath,
+      caption: "Gửi anh <script>alert(1)</script>",
+      threadId: "t-1",
+      threadType: 0,
+      accountId: "acc-1",
+    });
+
+    assert.equal((await app.request("/api/approve/approval-test")).status, 401);
+
+    const preview = await authed("/api/approve/approval-test");
+    assert.equal(preview.status, 200);
+    const html = await preview.text();
+    assert.match(html, /Bấm nút bên dưới mới thực sự gửi/);
+    assert.ok(!html.includes("<script>alert(1)</script>"), "caption phải được escape HTML");
+    assert.equal(approvals.getApproval("approval-test")?.status, "pending");
+
+    const noOrigin = await authed("/api/approve/approval-test", { method: "POST" });
+    assert.equal(noOrigin.status, 403);
+    assert.equal(approvals.getApproval("approval-test")?.status, "pending");
+
+    const noZalo = await authed("/api/approve/approval-test", {
+      method: "POST",
+      headers: { origin: "http://localhost" },
+    });
+    assert.equal(noZalo.status, 503);
+    assert.equal(approvals.getApproval("approval-test")?.status, "pending");
+  });
+
+  it("webhook OA thử nghiệm không còn được expose", async () => {
+    assert.equal((await app.request("/api/webhook/zalo", { method: "POST" })).status, 401);
+    assert.equal((await authed("/api/webhook/zalo", { method: "POST" })).status, 404);
   });
 
   it("GET /api/overview trả kèm todayKey + timezone (ngày VN, không phải ngày UTC trình duyệt)", async () => {

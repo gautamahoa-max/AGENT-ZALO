@@ -66,6 +66,10 @@ export type ThreadItem = {
   threadType: number;
   displayName: string;
   botEnabled: boolean;
+  conversationState: "bot_active" | "waiting_owner" | "human_owned" | "bot_resumable";
+  handoffReason: string;
+  handoffSummary: string;
+  handoffAt: string | null;
   messageCount: number;
   lastMessageAt: string | null;
   lastSenderName: string | null;

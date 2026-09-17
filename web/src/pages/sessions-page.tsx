@@ -122,19 +122,26 @@ export function SessionsPage({ accounts }: { accounts: AccountInfo[] }) {
             </td>
             <td className="px-4 py-3 text-ink-soft">{formatTime(t.lastMessageAt)}</td>
             <td className="px-4 py-3">
-              <button
-                onClick={() => toggleBot(t)}
-                className={`relative h-5 w-9 rounded-full transition-colors ${
-                  t.botEnabled ? "bg-zalo-500" : "bg-slate-300 dark:bg-slate-600"
-                }`}
-                title={t.botEnabled ? "Bot đang bật - bấm để tắt" : "Bot đang tắt - bấm để bật"}
-              >
-                <span
-                  className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all ${
-                    t.botEnabled ? "left-[18px]" : "left-0.5"
+              <div className="flex flex-col items-start gap-1">
+                <button
+                  onClick={() => toggleBot(t)}
+                  className={`relative h-5 w-9 rounded-full transition-colors ${
+                    t.botEnabled ? "bg-zalo-500" : "bg-slate-300 dark:bg-slate-600"
                   }`}
-                />
-              </button>
+                  title={t.botEnabled ? "Bot đang bật - bấm để tắt" : "Bot đang tắt - bấm để bật lại"}
+                >
+                  <span
+                    className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all ${
+                      t.botEnabled ? "left-[18px]" : "left-0.5"
+                    }`}
+                  />
+                </button>
+                {t.conversationState === "human_owned" && (
+                  <span className="whitespace-nowrap text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                    Hoà đang tiếp quản
+                  </span>
+                )}
+              </div>
             </td>
             <td className="px-4 py-3 text-right">
               <div className="flex items-center justify-end gap-2.5">

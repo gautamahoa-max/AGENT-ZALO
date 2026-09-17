@@ -143,12 +143,13 @@ export function createLead(input: {
   urgency?: string;
   experimentId?: string | null;
   experimentVariant?: string | null;
+  status?: LeadStatus;
 }): Lead {
   const estVal = input.estimatedValue || "";
   const loanAmount = parseVndAmount(estVal);
   const expectedRev = estimateExpectedRevenue(input.interestType, loanAmount);
   const status: LeadStatus =
-    input.interestType === "hen_gap_cafe" ? "appointment_booked" : "qualified";
+    input.status ?? (input.interestType === "hen_gap_cafe" ? "appointment_booked" : "qualified");
 
   const res = db
     .prepare(

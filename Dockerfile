@@ -34,7 +34,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=web-builder /app/web/dist ./web/dist
 COPY package.json pnpm-lock.yaml ./
 COPY src/ ./src/
-COPY data/personas/ ./data/personas/
+COPY personas/ ./personas/
 COPY tsconfig.json tsconfig.build.json ./
 
 # data/ được mount volume bên ngoài — tạo thư mục rỗng cho lần chạy đầu
@@ -45,7 +45,7 @@ EXPOSE 3900
 
 # Health check: ping dashboard endpoint
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:3900/api/overview').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:3900/api/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
 
 # Entry point: tsx chạy trực tiếp TypeScript (giống pnpm start)
 CMD ["npx", "tsx", "src/index.ts"]

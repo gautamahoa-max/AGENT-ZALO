@@ -1,7 +1,6 @@
 import { usageRoutes } from "./routes/usage-routes.js";
 import { healthRoutes } from "./routes/health-routes.js";
 
-import { webhookRoutes } from "./routes/webhook-routes.js";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -110,8 +109,6 @@ export function buildDashboardApp(): Hono {
     return c.json({ ok: true });
   });
 
-  app.route("/api/approve", approvalRoutes);
-  app.route("/api/webhook/zalo", webhookRoutes);
   app.route("/api", healthRoutes);
 
   // Mọi API sau điểm này yêu cầu session hợp lệ
@@ -123,6 +120,11 @@ export function buildDashboardApp(): Hono {
   });
 
   app.get("/api/auth/me", (c) => c.json({ ok: true }));
+
+  // Approval là hành động gửi file ra ngoài: bắt buộc đi qua session auth.
+  // Webhook OA thử nghiệm không được mount cho tới khi có xác minh chữ ký và
+  // worker thật; endpoint cũ nhận mọi JSON rồi trả 200 dù không xử lý thật.
+  app.route("/api/approve", approvalRoutes);
 
   /**
    * Đổi mật khẩu. BẮT BUỘC nhập lại mật khẩu hiện tại dù đã đăng nhập: cookie

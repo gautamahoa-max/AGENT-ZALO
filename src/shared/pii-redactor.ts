@@ -17,5 +17,14 @@ export function redactPII(text: string): string {
   const emailRegex = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
   redacted = redacted.replace(emailRegex, "[EMAIL_KHÁCH]");
 
+  // Số tài khoản ngân hàng: chỉ che khi có nhãn ngữ cảnh để không nhận nhầm
+  // số tiền/kỳ hạn. Giữ lại phần nhãn cho model hiểu khách đang nói về gì.
+  const accountRegex = /\b(số\s*tài\s*khoản|tài\s*khoản|stk)\s*[:#-]?\s*\d{6,19}\b/gi;
+  redacted = redacted.replace(accountRegex, "$1 [SỐ_TÀI_KHOẢN]");
+
+  // Mã số thuế cá nhân/doanh nghiệp thường 10 hoặc 13 chữ số.
+  const taxIdRegex = /\b(mã\s*số\s*thuế|mst)\s*[:#-]?\s*\d{10}(?:\d{3})?\b/gi;
+  redacted = redacted.replace(taxIdRegex, "$1 [MÃ_SỐ_THUẾ]");
+
   return redacted;
 }
