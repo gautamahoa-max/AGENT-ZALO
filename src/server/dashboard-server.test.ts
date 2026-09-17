@@ -112,6 +112,22 @@ describe("dashboard-server", () => {
     assert.equal((await authed("/api/webhook/zalo", { method: "POST" })).status, 404);
   });
 
+  it("đề xuất NotebookLM chỉ đổi trạng thái khi chủ tài khoản duyệt hoặc từ chối", async () => {
+    const store = await import("../conversation/knowledge-sync-proposal-store.js");
+    const proposal = store.saveKnowledgeProposal({
+      sourceId: "source-dashboard", sourceTitle: "Tài liệu mới", notebookId: "nb",
+      notebookTitle: "Notebook", changeSummary: "Thay đổi thử", personaRules: [], entities: [],
+    });
+    const status = await authed("/api/sync/notebooklm/status");
+    assert.equal(status.status, 200);
+    const body = await status.json() as { proposals: Array<{ id: string; status: string }> };
+    assert.ok(body.proposals.some((p) => p.id === proposal.id && p.status === "pending"));
+
+    const rejected = await authed(`/api/sync/notebooklm/proposals/${proposal.id}/reject`, { method: "POST" });
+    assert.equal(rejected.status, 200);
+    assert.equal(store.getKnowledgeProposal(proposal.id)?.status, "rejected");
+  });
+
   it("GET /api/overview trả kèm todayKey + timezone (ngày VN, không phải ngày UTC trình duyệt)", async () => {
     const res = await authed("/api/overview");
     assert.equal(res.status, 200);

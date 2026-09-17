@@ -32,6 +32,7 @@ const updateSchema = z.object({
   // ô để trống không vô tình xóa mất cấu hình.
   baseUrl: z.preprocess(oRong, z.string().startsWith("http", "phải bắt đầu bằng http").nullish()),
   model: z.preprocess(oRong, z.string().min(1).optional()),
+  fastModel: z.preprocess((v) => v === "" ? null : v, z.string().min(1).nullable().optional()),
   // Bỏ trống = giữ key cũ. Key mới đi 1 chiều lên server, lưu DB mã hóa.
   apiKey: z.string().optional(),
 });
@@ -42,6 +43,7 @@ function cauLoiTruong(issues: { path: PropertyKey[]; message: string }[]): strin
     provider: "Nhà cung cấp",
     baseUrl: "Base URL",
     model: "Model",
+    fastModel: "Model nhanh",
     apiKey: "API key",
   };
   const phan = issues.map((i) => `${nhan[String(i.path[0])] ?? String(i.path[0])}: ${i.message}`);
@@ -57,6 +59,7 @@ export const providerRoutes = new Hono()
       provider: s.provider,
       baseUrl: s.baseUrl ?? "",
       model: s.model,
+      fastModel: s.fastModel,
       // Phân biệt "chưa nhập bao giờ" với "đã nhập nhưng giải mã hỏng": hai
       // bên đều không có khóa dùng được, nhưng cách sửa khác hẳn nhau
       apiKeyMasked: s.apiKeyHong ? "lỗi giải mã - nhập lại" : maskApiKey(s.apiKey),
@@ -83,6 +86,7 @@ export const providerRoutes = new Hono()
       provider: s.provider,
       baseUrl: s.baseUrl ?? "",
       model: s.model,
+      fastModel: s.fastModel,
       // Phân biệt "chưa nhập bao giờ" với "đã nhập nhưng giải mã hỏng": hai
       // bên đều không có khóa dùng được, nhưng cách sửa khác hẳn nhau
       apiKeyMasked: s.apiKeyHong ? "lỗi giải mã - nhập lại" : maskApiKey(s.apiKey),
@@ -94,7 +98,7 @@ export const providerRoutes = new Hono()
     clearLlmSettings();
     log.info("Xóa override LLM - quay về cấu hình env");
     const s = getEffectiveLlmSettings();
-    return c.json({ ok: true, provider: s.provider, model: s.model, hasOverride: s.hasOverride });
+    return c.json({ ok: true, provider: s.provider, model: s.model, fastModel: s.fastModel, hasOverride: s.hasOverride });
   })
 
   // Gọi 1 completion tối thiểu bằng cấu hình hiệu lực - nút "Test kết nối" trên UI

@@ -20,7 +20,7 @@ Provider-agnostic: any OpenAI-compatible endpoint or Anthropic.
   <img src="https://img.shields.io/badge/Node-22.13+-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node" />
   <img src="https://img.shields.io/badge/SQLite-node:sqlite-003B57?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite" />
   <img src="https://img.shields.io/badge/AI_SDK-Vercel-000000?style=flat-square&logo=vercel&logoColor=white" alt="Vercel AI SDK" />
-  <img src="https://img.shields.io/badge/tests-1608%20passing-brightgreen?style=flat-square" alt="tests" />
+  <img src="https://img.shields.io/badge/tests-1617%20passing-brightgreen?style=flat-square" alt="tests" />
 </p>
 
 ---
@@ -64,6 +64,15 @@ idempotent lead. Any direct owner message also triggers takeover.
 
 Mortgage-plan files require an authenticated approval page. Opening an email or
 preview never sends a file; sending happens only after an explicit POST action.
+
+### Knowledge approval and cost routing
+
+- NotebookLM creates **review proposals**; it cannot modify the Persona or
+  Knowledge Graph until the account owner explicitly approves a proposal.
+- An optional fast model handles only a strict whitelist of greetings, thanks,
+  and short acknowledgements, with reasoning disabled and at most two steps.
+- Usage records the actual model, `main`/`fast` tier, and prompt-cache reads.
+- GitHub Actions runs typecheck, all tests, and both builds on PRs and `main`.
 
 ### Real rich text, not plain walls
 
@@ -169,7 +178,7 @@ account plus QR login.
 pnpm dev                    # bot (watch mode) + dashboard
 pnpm build:web              # build the UI; the bot serves it at http://127.0.0.1:3900
 pnpm zalo-login acc-main    # QR login from the CLI (the web flow is easier)
-pnpm test                   # 1608 tests
+pnpm test                   # 1617 tests
 pnpm typecheck
 pnpm eval                   # 17 cases against a REAL model; no message ever reaches real Zalo
 ```
@@ -201,7 +210,7 @@ Image generation and the vision sidecar are configured separately, also OpenAI-c
 
 | | |
 |---|---|
-| Unit + integration tests | **1608**, on `node:test`, no external framework |
+| Unit + integration tests | **1617**, on `node:test`, no external framework |
 | Eval cases against a real model | **17** - measuring what tests cannot: does it research instead of guessing, ask when information is missing, format readably |
 | Source | ~31,700 lines excluding tests, across 273 files |
 

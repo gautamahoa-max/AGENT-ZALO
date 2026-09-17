@@ -53,6 +53,19 @@ describe("usage-store", () => {
     assert.equal(totals.totalTokens, 350);
   });
 
+  it("lưu model tier và token đọc từ cache để đo tiết kiệm", () => {
+    const turnId = ghiLuot("acc-cost", "t-cost", {
+      inputTokens: 1000, outputTokens: 50, totalTokens: 1050, steps: 1,
+      cachedInputTokens: 800, modelId: "flash-lite", modelTier: "fast",
+    });
+    const row = database.db.prepare("SELECT cached_input_tokens, model_id, model_tier FROM agent_turns WHERE id=?").get(turnId) as {
+      cached_input_tokens: number; model_id: string; model_tier: string;
+    };
+    assert.equal(row.cached_input_tokens, 800);
+    assert.equal(row.model_id, "flash-lite");
+    assert.equal(row.model_tier, "fast");
+  });
+
   it("thread chưa có lượt nào trả về 0", () => {
     const totals = usage.getThreadUsageTotals("acc-1", "t-trong");
     assert.deepEqual(totals, { turns: 0, totalTokens: 0 });

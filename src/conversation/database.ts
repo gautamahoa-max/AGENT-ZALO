@@ -323,6 +323,25 @@ function runMigrations(): void {
     );
     CREATE INDEX IF NOT EXISTS idx_pending_approvals_status_expiry
       ON pending_approvals (status, expires_at);
+
+    -- Thay đổi KB/persona do AI trích xuất từ NotebookLM luôn phải qua người
+    -- thật duyệt. Trạng thái applying là khóa nguyên tử chống hai lần bấm cùng áp dụng.
+    CREATE TABLE IF NOT EXISTS knowledge_sync_proposals (
+      id TEXT PRIMARY KEY,
+      source_id TEXT NOT NULL UNIQUE,
+      source_title TEXT NOT NULL,
+      notebook_id TEXT NOT NULL,
+      notebook_title TEXT NOT NULL,
+      change_summary TEXT NOT NULL DEFAULT '',
+      persona_rules_json TEXT NOT NULL DEFAULT '[]',
+      entities_json TEXT NOT NULL DEFAULT '[]',
+      status TEXT NOT NULL CHECK (status IN ('pending', 'applying', 'approved', 'rejected')) DEFAULT 'pending',
+      last_error TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      decided_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_knowledge_sync_proposals_status_created
+      ON knowledge_sync_proposals (status, created_at DESC);
   `);
 
   // Tool CHẠY LỖI: AI SDK để chúng ở content dạng tool-error, không vào
@@ -404,6 +423,9 @@ function runMigrations(): void {
   // Gắn nhãn A/B test cho từng turn agent (nếu có)
   addColumnIfMissing("agent_turns", "experiment_id", "TEXT");
   addColumnIfMissing("agent_turns", "experiment_variant", "TEXT");
+  addColumnIfMissing("agent_turns", "cached_input_tokens", "INTEGER NOT NULL DEFAULT 0");
+  addColumnIfMissing("agent_turns", "model_id", "TEXT NOT NULL DEFAULT ''");
+  addColumnIfMissing("agent_turns", "model_tier", "TEXT NOT NULL DEFAULT 'main'");
 }
 
 function addColumnIfMissing(table: string, column: string, definition: string): void {

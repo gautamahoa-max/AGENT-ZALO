@@ -36,6 +36,9 @@ const envSchema = z.object({
   // hiểu nhầm: giá trị cũ nằm lại trong `.env` mà DB đang gánh, người đọc file
   // tưởng đó là model đang chạy. Cùng nếp với LLM_API_KEY.
   LLM_MODEL: z.string().default(""),
+  // Model rẻ/nhanh cùng provider cho lời chào, cảm ơn và xác nhận ngắn. Rỗng =
+  // tắt routing; mọi nhu cầu ngân hàng, số liệu, tool và lịch hẹn vẫn dùng model chính.
+  LLM_FAST_MODEL: z.string().default(""),
   // Mặc định 10 (trước là 8). Đo trên Gemini 06/08/2026 với yêu cầu "tóm tắt 10
   // tin": model tiêu 6-8 bước chỉ để TÌM rồi hết bước, chưa kịp mở bài nào bằng
   // web_fetch, nên câu trả lời toàn ý chung chung không số liệu. 10 để một lượt

@@ -33,6 +33,8 @@ import {
 import { catNguCanhTheoNganSach } from "./trim-context-to-budget.js";
 import { giayChoLai, maHttpCua, phanLoaiLoiProvider } from "./provider-error-classifier.js";
 import { chayStream } from "./stream-text-result.js";
+import { getEffectiveLlmSettings } from "../config/runtime-llm-settings.js";
+import { routeModelForTurn, type ModelTier } from "./model-router.js";
 import { dungTinChenTrongNganSach, taoBoChenTin } from "./mid-turn-injection.js";
 import {
   canLuotChot,
@@ -144,6 +146,9 @@ export type AgentTurnResult = {
     steps: number;
     experimentId?: string | null;
     experimentVariant?: string | null;
+    cachedInputTokens?: number;
+    modelId?: string;
+    modelTier?: ModelTier;
   };
 };
 
@@ -244,6 +249,18 @@ export async function runAgentTurn({
     } catch (err) {
       log.error({ err }, "Lỗi khi phân bổ thử nghiệm A/B");
     }
+  }
+
+  const routed = routeModelForTurn({
+    agent,
+    batch,
+    fastModel: getEffectiveLlmSettings().fastModel,
+    isolated,
+  });
+  agent = routed.agent;
+  const modelTier = routed.tier;
+  if (modelTier === "fast") {
+    log.info({ model: agent.modelName }, "Dùng model nhanh cho lượt xã giao đơn giản");
   }
 
   // Phiên cô lập: KHÔNG gọi getRecentMessages/getMemoriesForContext/getThreadSummary
@@ -770,6 +787,9 @@ export async function runAgentTurn({
         steps: result.steps.length,
         experimentId,
         experimentVariant,
+        cachedInputTokens: result.totalUsage.inputTokenDetails?.cacheReadTokens ?? 0,
+        modelId: result.response.modelId,
+        modelTier,
       },
     };
   }
@@ -783,6 +803,9 @@ export async function runAgentTurn({
       steps: result.steps.length,
       experimentId,
       experimentVariant,
+      cachedInputTokens: result.totalUsage.inputTokenDetails?.cacheReadTokens ?? 0,
+      modelId: result.response.modelId,
+      modelTier,
     },
   };
 }

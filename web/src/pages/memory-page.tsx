@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { AccountInfo, MemoryFactItem } from "../dashboard-api-client";
+import type { AccountInfo, KnowledgeSyncProposal, MemoryFactItem } from "../dashboard-api-client";
 import { api } from "../dashboard-api-client";
 import { PageHeader } from "../layout/page-header";
 import { IconBrain, IconRefresh } from "../shared/dashboard-icons";
@@ -19,6 +19,7 @@ export function MemoryPage({ accounts }: { accounts: AccountInfo[] }) {
     syncedSourcesCount: number;
     history: any[];
     isSyncRunning: boolean;
+    proposals: KnowledgeSyncProposal[];
   } | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<{
@@ -93,6 +94,21 @@ export function MemoryPage({ accounts }: { accounts: AccountInfo[] }) {
     reload();
   }
 
+  async function decideProposal(id: string, action: "approve" | "reject") {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      if (action === "approve") await api.approveKnowledgeProposal(id);
+      else await api.rejectKnowledgeProposal(id);
+      setSyncResult({ type: "success", text: action === "approve" ? "Đã duyệt và áp dụng thay đổi." : "Đã từ chối đề xuất." });
+      reloadSyncStatus();
+    } catch (err: any) {
+      setSyncResult({ type: "error", text: "Không thể xử lý đề xuất", details: err.message || String(err) });
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -116,7 +132,7 @@ export function MemoryPage({ accounts }: { accounts: AccountInfo[] }) {
                 </span>
               </div>
               <p className="mt-1 text-[13px] text-ink-soft">
-                Tự động quét tài liệu mới trên NotebookLM để chắt lọc quy tắc vào Persona & nạp vào SQLite Fallback.
+                Quét tài liệu mới và tạo đề xuất. Bot chỉ cập nhật Persona/Knowledge Graph sau khi anh duyệt.
               </p>
               <div className="mt-2.5 flex flex-wrap items-center gap-4 text-[12px] text-ink-soft/80">
                 <span>📚 Đã lập chỉ mục: <strong>{syncStatus?.syncedSourcesCount ?? "..."} tài liệu</strong></span>
@@ -160,6 +176,30 @@ export function MemoryPage({ accounts }: { accounts: AccountInfo[] }) {
                 {syncResult.details}
               </div>
             )}
+          </div>
+        )}
+
+        {(syncStatus?.proposals ?? []).filter((p) => p.status === "pending").length > 0 && (
+          <div className="mt-4 space-y-3 border-t border-line pt-4">
+            <h4 className="text-[13px] font-semibold text-ink">Đề xuất đang chờ duyệt</h4>
+            {syncStatus!.proposals.filter((p) => p.status === "pending").map((proposal) => (
+              <div key={proposal.id} className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-800/50 dark:bg-amber-950/20">
+                <div className="text-[13px] font-semibold text-ink">{proposal.sourceTitle}</div>
+                <div className="mt-1 text-[12px] text-ink-soft">{proposal.notebookTitle} · {proposal.changeSummary}</div>
+                <div className="mt-2 text-[12px] text-ink-soft">
+                  {proposal.personaRules.length} quy tắc Persona · {proposal.entities.length} thực thể Knowledge Graph
+                </div>
+                {proposal.personaRules.length > 0 && (
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-[12px] text-ink">
+                    {proposal.personaRules.map((rule, index) => <li key={index}>{rule}</li>)}
+                  </ul>
+                )}
+                <div className="mt-3 flex gap-2">
+                  <button disabled={syncing} onClick={() => decideProposal(proposal.id, "approve")} className="rounded-lg bg-emerald-600 px-3 py-1.5 text-[12px] font-semibold text-white disabled:opacity-50">Duyệt & áp dụng</button>
+                  <button disabled={syncing} onClick={() => decideProposal(proposal.id, "reject")} className="rounded-lg border border-line bg-surface px-3 py-1.5 text-[12px] font-medium text-red-600 disabled:opacity-50">Từ chối</button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

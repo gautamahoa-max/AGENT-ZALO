@@ -20,7 +20,7 @@ mỗi account một "não" riêng, bộ công cụ mở rộng và dashboard web
   <img src="https://img.shields.io/badge/Node-22.13+-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node" />
   <img src="https://img.shields.io/badge/SQLite-node:sqlite-003B57?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite" />
   <img src="https://img.shields.io/badge/AI_SDK-Vercel-000000?style=flat-square&logo=vercel&logoColor=white" alt="Vercel AI SDK" />
-  <img src="https://img.shields.io/badge/tests-1608%20xanh-brightgreen?style=flat-square" alt="tests" />
+  <img src="https://img.shields.io/badge/tests-1617%20xanh-brightgreen?style=flat-square" alt="tests" />
 </p>
 
 ---
@@ -62,6 +62,18 @@ vào thread cũng tự động kích hoạt bàn giao.
 
 File Excel do agent tạo luôn đi qua trang duyệt có đăng nhập. Mở email hoặc mở
 link chỉ hiển thị bản xem trước; file chỉ được gửi sau thao tác POST xác nhận.
+
+### Kiểm duyệt Knowledge Base và tối ưu chi phí
+
+- NotebookLM chỉ phân tích tài liệu thành **đề xuất chờ duyệt**. Persona và
+  Knowledge Graph không thay đổi cho tới khi chủ tài khoản bấm “Duyệt & áp dụng”.
+- Có thể cấu hình `LLM_FAST_MODEL` trên dashboard. Model nhanh chỉ xử lý whitelist
+  lời chào/cảm ơn/xác nhận ngắn, tắt reasoning và tối đa 2 bước; câu nghiệp vụ,
+  số liệu, ảnh, tool và lịch hẹn luôn dùng model chính.
+- Usage lưu model thực tế, tier `main`/`fast` và token đọc từ prompt cache để đo
+  mức tiết kiệm thay vì luôn báo cache bằng 0.
+- GitHub Actions tự chạy typecheck, toàn bộ test và build backend/dashboard cho
+  mọi pull request và mỗi lần cập nhật `main`.
 
 ### Tin nhắn có định dạng thật
 
@@ -171,7 +183,7 @@ pnpm dev                    # bot (watch mode) + dashboard
 pnpm build:web              # build UI -> web/dist, bot tự serve tại http://127.0.0.1:3900
 pnpm dev:web                # dev UI dashboard (Vite, proxy vào API)
 pnpm zalo-login acc-chinh   # login QR bằng CLI (cách cũ - trên web tiện hơn)
-pnpm test                   # 1608 test
+pnpm test                   # 1617 test
 pnpm typecheck              # bắt buộc chạy trước khi báo hoàn thành
 pnpm eval                   # 17 case chạy MODEL THẬT, không tin nào ra Zalo thật
 ```
@@ -204,7 +216,7 @@ Vẽ ảnh và model vision phụ cấu hình riêng, cũng theo chuẩn OpenAI-
 
 | | |
 |---|---|
-| Test đơn vị + tích hợp | **1608**, chạy bằng `node:test`, không framework ngoài |
+| Test đơn vị + tích hợp | **1617**, chạy bằng `node:test`, không framework ngoài |
 | Case eval chạy model THẬT | **17** - đo thứ test không đo nổi: có tra cứu thay vì đoán không, có hỏi lại khi thiếu thông tin không, trình bày có dễ đọc không |
 | Nguồn | ~31.700 dòng (không tính test), 273 file |
 

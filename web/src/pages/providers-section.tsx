@@ -104,6 +104,22 @@ export function ProvidersSection() {
         </div>
 
         <div>
+          <label className="mb-1.5 block text-[13px] font-medium text-ink" htmlFor="pv-fast-model">
+            Model nhanh <span className="font-normal text-ink-soft">(không bắt buộc)</span>
+          </label>
+          <input
+            id="pv-fast-model"
+            className="gc-input w-full"
+            value={form.fastModel}
+            onChange={(e) => setForm({ ...form, fastModel: e.target.value })}
+            placeholder="Ví dụ: gemini-2.5-flash-lite"
+          />
+          <p className="mt-1.5 text-[12px] leading-[1.6] text-ink-soft">
+            Chỉ dùng cho lời chào, cảm ơn và xác nhận rất ngắn; câu hỏi nghiệp vụ, số liệu, ảnh và lịch hẹn vẫn dùng model chính. Để trống để tắt.
+          </p>
+        </div>
+
+        <div>
           <label className="mb-1.5 block text-[13px] font-medium text-ink" htmlFor="pv-api-key">
             API key <span className="font-normal text-ink-soft">(hiện tại: {settings.apiKeyMasked})</span>
           </label>

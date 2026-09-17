@@ -10,6 +10,7 @@ before(async () => {
   dataDir = setupTestEnv({
     LLM_PROVIDER: "anthropic",
     LLM_MODEL: "env-model",
+    LLM_FAST_MODEL: "env-fast-model",
     LLM_BASE_URL: "https://env.test/v1",
     LLM_API_KEY: "sk-env-key-123456",
   });
@@ -27,6 +28,7 @@ describe("runtime-llm-settings", () => {
     const s = settings.getEffectiveLlmSettings();
     assert.equal(s.provider, "anthropic");
     assert.equal(s.model, "env-model");
+    assert.equal(s.fastModel, "env-fast-model");
     assert.equal(s.apiKey, "sk-env-key-123456");
     assert.equal(s.hasOverride, false);
   });
@@ -59,6 +61,13 @@ describe("runtime-llm-settings", () => {
     const s = settings.getEffectiveLlmSettings();
     assert.equal(s.apiKey, "sk-db-secret-789");
     assert.equal(s.model, "db-model-2");
+  });
+
+  it("model nhanh lưu nóng và xóa được về giá trị env", () => {
+    settings.updateLlmSettings({ fastModel: "db-fast-model" });
+    assert.equal(settings.getEffectiveLlmSettings().fastModel, "db-fast-model");
+    settings.updateLlmSettings({ fastModel: null });
+    assert.equal(settings.getEffectiveLlmSettings().fastModel, "env-fast-model");
   });
 
   it("clearLlmSettings xóa hết override, quay về env", () => {

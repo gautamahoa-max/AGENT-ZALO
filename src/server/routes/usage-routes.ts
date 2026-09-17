@@ -7,14 +7,15 @@ export const usageRoutes = new Hono().get("/", (c) => {
     SELECT 
       COUNT(id) as totalRequests,
       SUM(input_tokens) as totalInputTokens,
-      SUM(output_tokens) as totalOutputTokens
+      SUM(output_tokens) as totalOutputTokens,
+      SUM(cached_input_tokens) as cachedTokens
     FROM agent_turns
   `).get() as any;
 
   const totalRequests = row.totalRequests || 0;
   const inputTokens = row.totalInputTokens || 0;
   const outputTokens = row.totalOutputTokens || 0;
-  const cachedTokens = 0; // Gemini / Llama might not track this in DB yet
+  const cachedTokens = row.cachedTokens || 0;
   
   // Llama 3.1 70b on OpenRouter is usually $0.4 / 1M input, $0.4 / 1M output (approx)
   // Gemini 1.5 flash is $0.075 / 1M input, $0.3 / 1M output
@@ -29,6 +30,7 @@ export const usageRoutes = new Hono().get("/", (c) => {
     totalInputTokens: inputTokens,
     totalOutputTokens: outputTokens,
     cachedTokens,
+    cacheHitRate: inputTokens > 0 ? Number((cachedTokens / inputTokens).toFixed(4)) : 0,
     estCost: estCost.toFixed(4),
     costGuard
   });

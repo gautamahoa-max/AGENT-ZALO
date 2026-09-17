@@ -8,6 +8,9 @@ export type AgentTurnUsage = {
   steps: number;
   experimentId?: string | null;
   experimentVariant?: string | null;
+  cachedInputTokens?: number;
+  modelId?: string;
+  modelTier?: "main" | "fast";
 };
 
 /** 'message' = trả lời tin nhắn tới; 'schedule' = job lịch hẹn tự chạy (không ai đang chờ) */
@@ -21,7 +24,8 @@ const finishStmt = db.prepare(`
   UPDATE agent_turns
   SET input_tokens = ?, output_tokens = ?, total_tokens = ?, steps = ?,
       experiment_id = COALESCE(?, experiment_id),
-      experiment_variant = COALESCE(?, experiment_variant)
+      experiment_variant = COALESCE(?, experiment_variant),
+      cached_input_tokens = ?, model_id = ?, model_tier = ?
   WHERE id = ?
 `);
 
@@ -62,6 +66,9 @@ export function finishAgentTurn(turnId: number, usage: AgentTurnUsage): void {
     usage.steps,
     usage.experimentId ?? null,
     usage.experimentVariant ?? null,
+    usage.cachedInputTokens ?? 0,
+    usage.modelId ?? "",
+    usage.modelTier ?? "main",
     turnId,
   );
 }

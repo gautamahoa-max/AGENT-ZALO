@@ -8,8 +8,15 @@ import { z } from "zod";
 import { dataDir } from "../config/env.js";
 import { createLogger } from "../shared/logger.js";
 import { resolveLanguageModel } from "../agent/llm-provider.js";
-import { clearKBCache } from "../agent/dynamic-kb-router.js";
-import { db as appDb } from "../conversation/database.js";
+import { clearKBCache, readCorePersona } from "../agent/dynamic-kb-router.js";
+import {
+  claimKnowledgeProposal,
+  getKnowledgeProposalBySource,
+  markKnowledgeProposalApproved,
+  rejectKnowledgeProposal,
+  releaseKnowledgeProposal,
+  saveKnowledgeProposal,
+} from "../conversation/knowledge-sync-proposal-store.js";
 
 const log = createLogger("notebooklm-sync");
 
@@ -213,8 +220,8 @@ export async function syncNotebookLM(options: { forceAll?: boolean } = {}): Prom
     }
 
     // 3. Tìm các nguồn mới chưa được đồng bộ
-    const newSources = allFoundSources.filter(
-      (s) => options.forceAll || !state.syncedSources[s.id],
+    const newSources = allFoundSources.filter((s) =>
+      options.forceAll || (!state.syncedSources[s.id] && !getKnowledgeProposalBySource(s.id)),
     );
 
     if (newSources.length === 0) {
@@ -226,7 +233,7 @@ export async function syncNotebookLM(options: { forceAll?: boolean } = {}): Prom
         totalSources: allFoundSources.length,
         newSourcesCount: 0,
         processedSources: [],
-        message: `Tất cả ${allFoundSources.length} tài liệu trong ${targetNotebooks.length} sổ tay NotebookLM liên kết đều đã được đồng bộ mới nhất.`,
+        message: `Không có tài liệu mới cần phân tích. Tài liệu đã duyệt hoặc đã có đề xuất trên dashboard.`,
       };
     }
 
@@ -235,19 +242,6 @@ export async function syncNotebookLM(options: { forceAll?: boolean } = {}): Prom
     // 4. Bóc tách từng tài liệu mới bằng AI
     const processedSources: SyncResult["processedSources"] = [];
     const model = resolveLanguageModel();
-    const graphDb = new DatabaseSync(GRAPH_DB_PATH);
-
-    const upsertEntity = graphDb.prepare(
-      "INSERT INTO entities (id, type, name) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET type = excluded.type, name = excluded.name",
-    );
-    const deleteAttr = graphDb.prepare("DELETE FROM attributes WHERE entity_id = ? AND key = ?");
-    const insertAttr = graphDb.prepare("INSERT INTO attributes (entity_id, key, value) VALUES (?, ?, ?)");
-
-    let corePersonaContent = fs.existsSync(CORE_PERSONA_PATH)
-      ? fs.readFileSync(CORE_PERSONA_PATH, "utf-8")
-      : "";
-    const newPersonaRulesAccumulated: string[] = [];
-
     for (const src of newSources) {
       log.info({ title: src.title, notebook: src.notebookTitle }, "Đang đọc nội dung file mới...");
       try {
@@ -301,39 +295,17 @@ Nhiệm vụ: Phân tích văn bản quy định/chính sách mới được c�
 
         const distilled = aiResult.object;
 
-        // Lưu vào SQLite Fallback Graph
-        graphDb.exec("BEGIN TRANSACTION");
-        try {
-          for (const ent of distilled.fallback_entities) {
-            upsertEntity.run(ent.id, ent.type, ent.name);
-            for (const [k, v] of Object.entries(ent.attributes)) {
-              deleteAttr.run(ent.id, k);
-              insertAttr.run(ent.id, k, String(v));
-            }
-          }
-          graphDb.exec("COMMIT");
-        } catch (dbErr) {
-          graphDb.exec("ROLLBACK");
-          log.error({ err: dbErr }, "Lỗi khi cập nhật Knowledge Graph SQLite");
-        }
-
-        // Gom các quy tắc cho Persona
-        if (distilled.persona_rules.length > 0) {
-          newPersonaRulesAccumulated.push(
-            `\n- CẬP NHẬT TỪ VĂN BẢN [${src.title}]:\n  ` +
-              distilled.persona_rules.map((r) => `+ ${r}`).join("\n  "),
-          );
-        }
-
-        // Cập nhật trạng thái
-        state.syncedSources[src.id] = {
-          id: src.id,
-          title: src.title,
+        // AI chỉ tạo ĐỀ XUẤT. Không được tự sửa graph/persona; chủ tài khoản
+        // phải xem và duyệt trên dashboard trước.
+        saveKnowledgeProposal({
+          sourceId: src.id,
+          sourceTitle: src.title,
           notebookId: src.notebookId,
           notebookTitle: src.notebookTitle,
-          syncedAt: new Date().toISOString(),
-          summary: distilled.change_summary,
-        };
+          changeSummary: distilled.change_summary,
+          personaRules: distilled.persona_rules,
+          entities: distilled.fallback_entities,
+        }, options.forceAll === true);
 
         processedSources.push({
           title: src.title,
@@ -347,41 +319,12 @@ Nhiệm vụ: Phân tích văn bản quy định/chính sách mới được c�
       }
     }
 
-    graphDb.close();
-
-    // 5. Cập nhật Persona nếu có quy tắc mới
-    if (newPersonaRulesAccumulated.length > 0 && corePersonaContent) {
-      // Tìm vị trí mục 3. NGUYÊN TẮC AN TOÀN hoặc chèn vào cuối mục 3
-      const section3Header = "3. NGUYÊN TẮC AN TOÀN & ĐIỀU KIỆN TÍN DỤNG (RED FLAGS)";
-      const section4Header = "4. NGHỆ THUẬT GIAO TIẾP & DẪN DẮT KHÁCH HÀNG (SALES QUALIFICATION)";
-
-      if (corePersonaContent.includes(section3Header) && corePersonaContent.includes(section4Header)) {
-        const parts = corePersonaContent.split(section4Header);
-        corePersonaContent =
-          parts[0].trimEnd() +
-          "\n" +
-          newPersonaRulesAccumulated.join("\n") +
-          "\n\n" +
-          section4Header +
-          parts[1];
-      } else {
-        corePersonaContent += "\n\n" + newPersonaRulesAccumulated.join("\n");
-      }
-
-      fs.writeFileSync(CORE_PERSONA_PATH, corePersonaContent, "utf-8");
-
-      // Đồng bộ vào DB agents table
-      appDb.prepare("UPDATE agents SET persona = ? WHERE is_default = 1").run(corePersonaContent);
-      clearKBCache();
-      log.info("Đã tự động cập nhật Persona và đồng bộ vào SQLite agents!");
-    }
-
     state.lastSyncAt = new Date().toISOString();
     state.history.unshift({
       timestamp: state.lastSyncAt,
       newSourcesCount: processedSources.length,
       sourceTitles: processedSources.map((s) => s.title),
-      summary: processedSources.map((s) => `${s.title}: ${s.summary}`).join("; "),
+      summary: `Đã tạo ${processedSources.length} đề xuất chờ duyệt: ` + processedSources.map((s) => `${s.title}: ${s.summary}`).join("; "),
     });
 
     // Giữ lịch sử 30 lần gần nhất
@@ -397,7 +340,7 @@ Nhiệm vụ: Phân tích văn bản quy định/chính sách mới được c�
       totalSources: allFoundSources.length,
       newSourcesCount: processedSources.length,
       processedSources,
-      message: `Đã đồng bộ thành công ${processedSources.length} tài liệu mới vào Persona và Fallback Database!`,
+      message: `Đã phân tích ${processedSources.length} tài liệu và tạo đề xuất chờ duyệt. Chưa có thay đổi nào được áp dụng vào bot.`,
     };
   } catch (err: any) {
     log.error({ err }, "Lỗi trong quá trình đồng bộ NotebookLM");
@@ -411,4 +354,87 @@ Nhiệm vụ: Phân tích văn bản quy định/chính sách mới được c�
       }
     }
   }
+}
+
+function ensureGraphSchema(graphDb: DatabaseSync): void {
+  graphDb.exec(`
+    CREATE TABLE IF NOT EXISTS entities (id TEXT PRIMARY KEY, type TEXT NOT NULL, name TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS attributes (entity_id TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS relations (source_id TEXT NOT NULL, target_id TEXT NOT NULL, relation_type TEXT NOT NULL);
+  `);
+}
+
+/** Áp dụng một đề xuất đã được người thật duyệt; gọi lặp không nhân đôi rule. */
+export function approveKnowledgeProposal(id: string): { ok: true } {
+  const proposal = claimKnowledgeProposal(id);
+  if (!proposal) throw new Error("Đề xuất không còn ở trạng thái chờ duyệt");
+  try {
+    fs.mkdirSync(path.dirname(GRAPH_DB_PATH), { recursive: true });
+    const graphDb = new DatabaseSync(GRAPH_DB_PATH);
+    try {
+      ensureGraphSchema(graphDb);
+      const upsert = graphDb.prepare("INSERT INTO entities (id,type,name) VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET type=excluded.type,name=excluded.name");
+      const del = graphDb.prepare("DELETE FROM attributes WHERE entity_id=? AND key=?");
+      const ins = graphDb.prepare("INSERT INTO attributes (entity_id,key,value) VALUES (?,?,?)");
+      graphDb.exec("BEGIN IMMEDIATE");
+      try {
+        for (const entity of proposal.entities) {
+          upsert.run(entity.id, entity.type, entity.name);
+          for (const [key, value] of Object.entries(entity.attributes)) {
+            del.run(entity.id, key);
+            ins.run(entity.id, key, String(value));
+          }
+        }
+        graphDb.exec("COMMIT");
+      } catch (error) {
+        graphDb.exec("ROLLBACK");
+        throw error;
+      }
+    } finally {
+      graphDb.close();
+    }
+
+    if (proposal.personaRules.length > 0) {
+      const marker = `notebooklm-proposal:${proposal.id}`;
+      let persona = fs.existsSync(CORE_PERSONA_PATH)
+        ? fs.readFileSync(CORE_PERSONA_PATH, "utf-8")
+        : readCorePersona();
+      const open = `<!-- ${marker} -->`;
+      const close = `<!-- /${marker} -->`;
+      const block = `${open}\n## Cập nhật đã duyệt: ${proposal.sourceTitle}\n${proposal.personaRules.map((rule) => `- ${rule}`).join("\n")}\n${close}`;
+      const start = persona.indexOf(open);
+      const end = persona.indexOf(close, start + open.length);
+      const nextPersona = start >= 0 && end >= start
+        ? persona.slice(0, start) + block + persona.slice(end + close.length)
+        : `${persona.trimEnd()}\n\n${block}\n`;
+      if (nextPersona !== persona) {
+        persona = nextPersona;
+        fs.mkdirSync(path.dirname(CORE_PERSONA_PATH), { recursive: true });
+        fs.writeFileSync(CORE_PERSONA_PATH, persona, "utf-8");
+        clearKBCache();
+      }
+    }
+
+    const state = loadSyncState();
+    state.syncedSources[proposal.sourceId] = {
+      id: proposal.sourceId,
+      title: proposal.sourceTitle,
+      notebookId: proposal.notebookId,
+      notebookTitle: proposal.notebookTitle,
+      syncedAt: new Date().toISOString(),
+      summary: proposal.changeSummary,
+    };
+    saveSyncState(state);
+    markKnowledgeProposalApproved(id);
+    log.info({ proposalId: id, sourceId: proposal.sourceId }, "Đã duyệt và áp dụng thay đổi Knowledge Base");
+    return { ok: true };
+  } catch (error) {
+    releaseKnowledgeProposal(id, error instanceof Error ? error.message : String(error));
+    throw error;
+  }
+}
+
+export function rejectKnowledgeSyncProposal(id: string): { ok: true } {
+  if (!rejectKnowledgeProposal(id)) throw new Error("Đề xuất không còn ở trạng thái chờ duyệt");
+  return { ok: true };
 }

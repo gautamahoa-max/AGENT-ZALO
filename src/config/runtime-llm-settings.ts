@@ -15,6 +15,7 @@ export type LlmSettings = {
   provider: LlmProviderKind;
   baseUrl: string | undefined;
   model: string;
+  fastModel: string;
   apiKey: string;
   /** true = đang dùng override từ DB (ít nhất 1 field), false = thuần env */
   hasOverride: boolean;
@@ -32,7 +33,7 @@ export type LlmSettings = {
 
 const log = createLogger("llm-settings");
 
-const KEYS = ["llm_provider", "llm_base_url", "llm_model", "llm_api_key"] as const;
+const KEYS = ["llm_provider", "llm_base_url", "llm_model", "llm_fast_model", "llm_api_key"] as const;
 
 const getStmt = db.prepare("SELECT value FROM runtime_settings WHERE key = ?");
 const setStmt = db.prepare(`
@@ -82,6 +83,7 @@ export function getEffectiveLlmSettings(): LlmSettings {
   const provider = read("llm_provider");
   const baseUrl = read("llm_base_url");
   const model = read("llm_model");
+  const fastModel = read("llm_fast_model");
   const encryptedApiKey = read("llm_api_key");
 
   const key = giaiMaAnToan(encryptedApiKey);
@@ -90,8 +92,9 @@ export function getEffectiveLlmSettings(): LlmSettings {
     provider: (provider as LlmSettings["provider"]) ?? env.LLM_PROVIDER,
     baseUrl: baseUrl ?? env.LLM_BASE_URL,
     model: model ?? env.LLM_MODEL,
+    fastModel: fastModel ?? env.LLM_FAST_MODEL,
     apiKey: key.hong ? "" : (key.value ?? env.LLM_API_KEY),
-    hasOverride: Boolean(provider || baseUrl || model || encryptedApiKey),
+    hasOverride: Boolean(provider || baseUrl || model || fastModel || encryptedApiKey),
     apiKeyHong: key.hong,
   };
 }
@@ -108,6 +111,8 @@ export type LlmSettingsUpdate = {
    */
   baseUrl?: string | null;
   model?: string;
+  /** null = xóa model nhanh; bỏ trường = giữ nguyên */
+  fastModel?: string | null;
   /** Bỏ trống = giữ key hiện tại */
   apiKey?: string;
 };
@@ -117,6 +122,8 @@ export function updateLlmSettings(update: LlmSettingsUpdate): void {
   if (update.baseUrl === null) delStmt.run("llm_base_url");
   else if (update.baseUrl !== undefined) setStmt.run("llm_base_url", update.baseUrl);
   if (update.model !== undefined) setStmt.run("llm_model", update.model);
+  if (update.fastModel === null) delStmt.run("llm_fast_model");
+  else if (update.fastModel !== undefined) setStmt.run("llm_fast_model", update.fastModel);
   if (update.apiKey !== undefined && update.apiKey !== "") {
     setStmt.run("llm_api_key", encryptSecret(update.apiKey));
   }

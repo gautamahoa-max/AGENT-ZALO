@@ -285,6 +285,7 @@ export const api = {
         summary: string;
       }>;
       isSyncRunning: boolean;
+      proposals: KnowledgeSyncProposal[];
     }>("/api/sync/notebooklm/status"),
 
   runNotebookSync: (forceAll = false) =>
@@ -306,6 +307,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ forceAll }),
     }),
+  approveKnowledgeProposal: (id: string) =>
+    request<{ ok: true }>(`/api/sync/notebooklm/proposals/${encodeURIComponent(id)}/approve`, { method: "POST" }),
+  rejectKnowledgeProposal: (id: string) =>
+    request<{ ok: true }>(`/api/sync/notebooklm/proposals/${encodeURIComponent(id)}/reject`, { method: "POST" }),
 
   tools: () =>
     request<{ items: ToolCatalogItem[]; search: SearchSettings; fetch: FetchSettings }>(
@@ -540,10 +545,26 @@ export type MemoryFactItem = {
   createdAt: string;
 };
 
+export type KnowledgeSyncProposal = {
+  id: string;
+  sourceId: string;
+  sourceTitle: string;
+  notebookId: string;
+  notebookTitle: string;
+  changeSummary: string;
+  personaRules: string[];
+  entities: Array<{ id: string; type: string; name: string; attributes: Record<string, string> }>;
+  status: "pending" | "applying" | "approved" | "rejected";
+  lastError: string;
+  createdAt: string;
+  decidedAt: string | null;
+};
+
 export type ProviderSettings = {
   provider: LlmProviderKind;
   baseUrl: string;
   model: string;
+  fastModel: string;
   apiKeyMasked: string;
   hasOverride: boolean;
 };

@@ -4,7 +4,7 @@ import { api, ApiError } from "../dashboard-api-client";
 import { useConfirmDialog } from "../shared/confirm-dialog";
 import { baseUrlKhiLuu, oTheoNhaCungCap } from "./provider-form-fields";
 
-export type ProviderForm = { provider: string; baseUrl: string; model: string; apiKey: string };
+export type ProviderForm = { provider: string; baseUrl: string; model: string; fastModel: string; apiKey: string };
 export type TrangThai = { tone: "green" | "red"; text: string } | null;
 
 /**
@@ -17,6 +17,7 @@ export function useProviderForm() {
     provider: "openai-compatible",
     baseUrl: "",
     model: "",
+    fastModel: "",
     apiKey: "",
   });
   const [status, setStatus] = useState<TrangThai>(null);
@@ -26,7 +27,7 @@ export function useProviderForm() {
   const load = () =>
     api.provider().then((s) => {
       setSettings(s);
-      setForm({ provider: s.provider, baseUrl: s.baseUrl, model: s.model, apiKey: "" });
+      setForm({ provider: s.provider, baseUrl: s.baseUrl, model: s.model, fastModel: s.fastModel, apiKey: "" });
     });
 
   useEffect(() => {
@@ -60,6 +61,7 @@ export function useProviderForm() {
         // `undefined` (giữ nguyên) như cũ.
         baseUrl: baseUrlKhiLuu(form.provider, form.baseUrl),
         model: form.model,
+        fastModel: form.fastModel,
         apiKey: form.apiKey || undefined,
       });
       await load();

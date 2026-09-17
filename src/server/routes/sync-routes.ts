@@ -1,8 +1,11 @@
 import { Hono } from "hono";
 import {
+  approveKnowledgeProposal,
   loadSyncState,
+  rejectKnowledgeSyncProposal,
   syncNotebookLM,
 } from "../../services/notebooklm-sync-service.js";
+import { listKnowledgeProposals } from "../../conversation/knowledge-sync-proposal-store.js";
 import { createLogger } from "../../shared/logger.js";
 
 const log = createLogger("sync-routes");
@@ -18,6 +21,7 @@ export const syncRoutes = new Hono()
       syncedSourcesCount: syncedCount,
       history: state.history,
       isSyncRunning,
+      proposals: listKnowledgeProposals(),
     });
   })
   .post("/notebooklm/run", async (c) => {
@@ -46,5 +50,19 @@ export const syncRoutes = new Hono()
       );
     } finally {
       isSyncRunning = false;
+    }
+  })
+  .post("/notebooklm/proposals/:id/approve", (c) => {
+    try {
+      return c.json(approveKnowledgeProposal(c.req.param("id")));
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 409);
+    }
+  })
+  .post("/notebooklm/proposals/:id/reject", (c) => {
+    try {
+      return c.json(rejectKnowledgeSyncProposal(c.req.param("id")));
+    } catch (error) {
+      return c.json({ error: error instanceof Error ? error.message : String(error) }, 409);
     }
   });
